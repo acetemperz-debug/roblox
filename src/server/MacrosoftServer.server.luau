@@ -5,6 +5,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextService = game:GetService("TextService")
 
 local Shared = ReplicatedStorage:WaitForChild("MacrosoftShared")
 local Config = require(Shared.Config)
@@ -15,6 +16,7 @@ local Upgrades = require(Shared.Upgrades)
 local DialogueLibrary = require(Shared.DialogueLibrary)
 local RandomEvents = require(Shared.RandomEvents)
 local Personalities = require(Shared.Personalities)
+local Products = require(Shared.Products)
 
 -- Remotes must exist before any client script requires Net.
 Net.init()
@@ -26,12 +28,14 @@ local UpgradeManager = require(Modules.UpgradeManager)
 local AchievementManager = require(Modules.AchievementManager)
 local EnvironmentBuilder = require(Modules.EnvironmentBuilder)
 local LeaderboardManager = require(Modules.LeaderboardManager)
+local MonetisationManager = require(Modules.MonetisationManager)
+local CosmeticsManager = require(Modules.CosmeticsManager)
 
 --------------------------------------------------------------------------------
 -- World
 --------------------------------------------------------------------------------
 
-local _, shopPrompt = EnvironmentBuilder.build()
+local _, shopPrompt, executivePrompt = EnvironmentBuilder.build()
 
 if shopPrompt then
 	shopPrompt.Triggered:Connect(function(player)
@@ -47,14 +51,32 @@ end
 local callCentre = workspace:WaitForChild("CallCentre")
 local workstation = callCentre:WaitForChild("Desks"):WaitForChild("PlayerWorkstation")
 local workstationPrompt = workstation:FindFirstChildWhichIsA("ProximityPrompt", true)
+
+local function startFromDesk(player: Player)
+	local data = PlayerDataManager.get(player)
+	local difficulty = data and data.settings.difficulty or "Normal"
+	local ok, reason = CallManager.start(player, difficulty)
+	if not ok then
+		Net.event("Notify"):FireClient(player, { title = "Cannot Start Call", body = reason, kind = "warn" })
+	end
+end
+
 if workstationPrompt then
-	workstationPrompt.Triggered:Connect(function(player)
-		local data = PlayerDataManager.get(player)
-		local difficulty = data and data.settings.difficulty or "Normal"
-		local ok, reason = CallManager.start(player, difficulty)
-		if not ok then
-			Net.event("Notify"):FireClient(player, { title = "Cannot Start Call", body = reason, kind = "warn" })
+	workstationPrompt.Triggered:Connect(startFromDesk)
+end
+
+-- The Corner Office desk works exactly the same, for players who own the pass.
+if executivePrompt then
+	executivePrompt.Triggered:Connect(function(player)
+		if not MonetisationManager.owns(player, "corner_office") then
+			Net.event("Notify"):FireClient(player, {
+				title = "Corner Office",
+				body = "This desk belongs to Corner Office owners. Check the Robux store.",
+				kind = "warn",
+			})
+			return
 		end
+		startFromDesk(player)
 	end)
 end
 
@@ -65,6 +87,8 @@ end
 PlayerDataManager.start()
 CallManager.beginRuntime()
 LeaderboardManager.start()
+MonetisationManager.start()
+CosmeticsManager.start()
 
 -- leaderstats so Credits and Rank appear on the Roblox player list.
 local function setupLeaderstats(player: Player, view)
@@ -121,6 +145,22 @@ end)
 
 AchievementManager.Unlocked.Event:Connect(function(player, achievement)
 	Net.event("AchievementUnlocked"):FireClient(player, achievement)
+end)
+
+MonetisationManager.Granted.Event:Connect(function(player, product, message)
+	Net.event("Notify"):FireClient(player, {
+		title = product.name,
+		body = message,
+		kind = "gold",
+	})
+end)
+
+MonetisationManager.PassChanged.Event:Connect(function(player, pass)
+	Net.event("Notify"):FireClient(player, {
+		title = pass.name .. " unlocked",
+		body = pass.blurb,
+		kind = "gold",
+	})
 end)
 
 UpgradeManager.Purchased.Event:Connect(function(player, def)
@@ -198,12 +238,91 @@ Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
 	PlayerDataManager.setDifficulty(player, key)
 end)
 
+Net.event("PromptPurchase").OnServerEvent:Connect(function(player, kind, itemId)
+	if typeof(kind) ~= "string" or typeof(itemId) ~= "string" then
+		return
+	end
+	local ok, reason
+	if kind == "pass" then
+		ok, reason = MonetisationManager.promptPass(player, itemId)
+	elseif kind == "product" then
+		ok, reason = MonetisationManager.promptProduct(player, itemId)
+	else
+		return
+	end
+	if not ok then
+		Net.event("Notify"):FireClient(player, { title = "Store", body = reason, kind = "warn" })
+	end
+end)
+
+Net.event("UseItem").OnServerEvent:Connect(function(player, productId)
+	if typeof(productId) ~= "string" then
+		return
+	end
+	local ok, message = CallManager.useItem(player, productId)
+	Net.event("Notify"):FireClient(player, {
+		title = ok and "Item Used" or "Cannot Use That",
+		body = message,
+		kind = ok and "success" or "warn",
+	})
+end)
+
+Net.event("SetAlias").OnServerEvent:Connect(function(player, alias)
+	if typeof(alias) ~= "string" then
+		return
+	end
+	if not MonetisationManager.owns(player, "alias_licence") then
+		Net.event("Notify"):FireClient(player, {
+			title = "Alias Licence",
+			body = "You need the Alias Licence to change your technician name.",
+			kind = "warn",
+		})
+		return
+	end
+
+	alias = string.gsub(alias, "^%s+", "")
+	alias = string.gsub(alias, "%s+$", "")
+	if #alias < 2 or #alias > 16 or string.match(alias, "[^%a%s'%-]") then
+		Net.event("Notify"):FireClient(player, {
+			title = "Alias Rejected",
+			body = "Two to sixteen letters, please.",
+			kind = "warn",
+		})
+		return
+	end
+
+	-- Filter it even though only the buyer ever sees it -- it is user text.
+	local ok, filtered = pcall(function()
+		local result = TextService:FilterStringAsync(alias, player.UserId)
+		return result:GetNonChatStringForBroadcastAsync()
+	end)
+	if not ok then
+		Net.event("Notify"):FireClient(player, {
+			title = "Alias Rejected",
+			body = "Could not check that name. Try again.",
+			kind = "warn",
+		})
+		return
+	end
+
+	PlayerDataManager.setAlias(player, filtered)
+	Net.event("Notify"):FireClient(player, {
+		title = "Alias Set",
+		body = "You are now " .. filtered .. " from Macrosoft Technical.",
+		kind = "success",
+	})
+end)
+
 Net.event("RequestData").OnServerEvent:Connect(function(player)
 	PlayerDataManager.notify(player)
 end)
 
 Net.func("GetData").OnServerInvoke = function(player)
 	return PlayerDataManager.publicView(player)
+end
+
+Net.func("GetStore").OnServerInvoke = function(player)
+	return MonetisationManager.catalog(player)
 end
 
 Net.func("GetCatalog").OnServerInvoke = function(player)
@@ -247,6 +366,14 @@ Net.func("GetCatalog").OnServerInvoke = function(player)
 	}
 end
 
+local configuredProducts = 0
+for _, def in ipairs(Products.GamePasses) do
+	configuredProducts += Products.isConfigured(def) and 1 or 0
+end
+for _, def in ipairs(Products.DeveloperProducts) do
+	configuredProducts += Products.isConfigured(def) and 1 or 0
+end
+
 print(string.format(
 	"[Macrosoft] v%s online - %d personalities, %d dialogue situations, %d random events, %d upgrades.",
 	Config.Version,
@@ -254,4 +381,9 @@ print(string.format(
 	DialogueLibrary.count(),
 	RandomEvents.count(),
 	#Upgrades.List
+))
+print(string.format(
+	"[Macrosoft] Robux store: %d of %d items have an asset id set. Items without one show as unavailable.",
+	configuredProducts,
+	#Products.GamePasses + #Products.DeveloperProducts
 ))

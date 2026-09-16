@@ -33,6 +33,9 @@ and used on a real person. Do not do any of this to anybody.
 | RewardManager | `src/server/RewardManager.luau` | Payouts and bonuses |
 | UpgradeManager | `src/server/UpgradeManager.luau` | Purchases |
 | AchievementManager | `src/server/AchievementManager.luau` | Unlock checks |
+| Products | `src/shared/Products.luau` | Robux catalogue: 5 passes, 6 developer products |
+| MonetisationManager | `src/server/MonetisationManager.luau` | Ownership caching, ProcessReceipt, grants |
+| CosmeticsManager | `src/server/CosmeticsManager.luau` | Overhead titles and the Platinum Headset |
 | EnvironmentBuilder | `src/server/EnvironmentBuilder.luau` | Builds the whole call centre from parts |
 | LeaderboardManager | `src/server/LeaderboardManager.luau` | OrderedDataStore wall boards |
 | MacrosoftServer | `src/server/MacrosoftServer.server.luau` | Server entry point |
@@ -72,3 +75,47 @@ difficulty curve behaves. Current balance, optimal play:
 
 Nightmare is that low on purpose: most of its callers (a rival call centre, a
 police front desk, a scambaiter) are written so they can never be fooled.
+
+## Leaderboards
+
+Seven global boards, all OrderedDataStore-backed and shared across servers:
+
+* **Top Lifetime Earnings** and **Most Successful Calls** on the back wall
+* **One board per difficulty** down the right-hand wall, counting wins on that
+  difficulty
+
+The difficulty boards count *wins*, never credits, so no paid multiplier can
+move a player up them.
+
+## Robux
+
+The catalogue lives in `src/shared/Products.luau`. Every item ships with
+`assetId = 0`, which means "not configured" — the store shows it as unavailable
+rather than prompting a purchase that would fail. Create each item on the
+Creator Dashboard and paste the IDs in.
+
+| Game Pass | Effect |
+| --- | --- |
+| Overtime Contract | 2x Credits forever (does not touch leaderboards or rank) |
+| Employee Of The Month | Gold overhead title visible to the whole server |
+| Corner Office | A personal desk inside the glass manager's office |
+| Platinum Headset | Cosmetic headset welded to your character |
+| Alias Licence | Replace "Kevin" with your own technician name in dialogue |
+
+| Developer Product | Effect |
+| --- | --- |
+| Coffee Refill | +40 Patience, used from the call screen |
+| Supervisor Takeover | Skips the next random interruption |
+| Warm Lead | Next caller rolls one tier friendlier |
+| Petty Cash / Bonus Payslip | 2,500 / 15,000 Credits |
+| Double Shift | 2x Credits for 30 minutes |
+
+Three rules the code enforces, and the tests assert:
+
+* **Nothing paid reveals the caller.** Reading the caller is the whole skill on
+  Hard and above.
+* **Bought Credits are not earnings.** They can buy desk upgrades but never
+  rank, the earnings board, or the wealth achievement.
+* **Grants are saved before `PurchaseGranted` is returned**, and deduped on
+  `PurchaseId`, so a replayed receipt never double-grants and a failed save
+  never silently eats a purchase.

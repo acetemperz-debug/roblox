@@ -127,8 +127,20 @@ function Interface.build(): any
 		Text = "Intern",
 		TextSize = 15,
 		TextColor3 = T.SubText,
-		Position = UDim2.new(0, 470, 0, 0),
-		Size = UDim2.new(0, 260, 1, 0),
+		Position = UDim2.new(0, 470, 0, 8),
+		Size = UDim2.new(0, 260, 0, 20),
+		Parent = topBar,
+	})
+
+	local boostLabel = UIKit.label({
+		Name = "Boost",
+		Text = "",
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+		TextColor3 = T.Gold,
+		Position = UDim2.new(0, 470, 0, 26),
+		Size = UDim2.new(0, 260, 0, 18),
+		Visible = false,
 		Parent = topBar,
 	})
 
@@ -136,7 +148,7 @@ function Interface.build(): any
 		Name = "Buttons",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.new(0, 340, 0, 34),
+		Size = UDim2.new(0, 450, 0, 34),
 		BackgroundTransparency = 1,
 		Parent = topBar,
 	})
@@ -159,8 +171,11 @@ function Interface.build(): any
 	end
 
 	local shopButton = topButton("Upgrades", 1)
-	local statsButton = topButton("Career", 2)
-	local helpButton = topButton("How To Play", 3)
+	local storeButton = topButton("Store", 2)
+	local statsButton = topButton("Career", 3)
+	local helpButton = topButton("How To Play", 4)
+	storeButton.BackgroundColor3 = T.Gold
+	storeButton.TextColor3 = Color3.fromRGB(32, 26, 10)
 
 	----------------------------------------------------------------------------
 	-- Home panel (difficulty + start call)
@@ -440,6 +455,22 @@ function Interface.build(): any
 		choiceButtons[index] = button
 	end
 
+	-- Robux consumables usable mid-call. Populated by the client.
+	local itemRow = UIKit.new("Frame", {
+		Name = "Items",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.new(1, -150, 0, 36),
+		BackgroundTransparency = 1,
+		Parent = dialogue,
+	})
+	UIKit.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		Padding = UDim.new(0, 6),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}).Parent = itemRow
+
 	local hangUp = UIKit.button({
 		Name = "HangUp",
 		Text = "HANG UP",
@@ -539,6 +570,21 @@ function Interface.build(): any
 	local career = overlay("Career", "Career")
 	career.frame.Parent = gui
 
+	local store = overlay("Store", "Robux Store")
+	store.frame.Parent = gui
+	local storeNote = UIKit.label({
+		Name = "Note",
+		Text = "Cosmetics and conveniences only. Nothing here reveals who is on the call.",
+		TextSize = 13,
+		TextColor3 = T.SubText,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -112, 0, 20),
+		Size = UDim2.new(0, 330, 0, 22),
+		ZIndex = 22,
+		Parent = store.panel,
+	})
+
 	local help = overlay("Help", "How To Play")
 	help.frame.Parent = gui
 	local helpText = UIKit.label({
@@ -595,6 +641,8 @@ function Interface.build(): any
 			credits = creditsLabel,
 			rank = rankLabel,
 			shopButton = shopButton,
+			storeButton = storeButton,
+			boost = boostLabel,
 			statsButton = statsButton,
 			helpButton = helpButton,
 			brand = brand,
@@ -622,6 +670,7 @@ function Interface.build(): any
 			prompt = promptLine,
 			feedback = feedbackLabel,
 			choiceButtons = choiceButtons,
+			itemRow = itemRow,
 			hangUp = hangUp,
 		},
 		result = {
@@ -636,6 +685,7 @@ function Interface.build(): any
 			header = result.header,
 		},
 		shop = { frame = shop.frame, close = shop.close, body = shop.body, credits = shopCredits },
+		store = { frame = store.frame, close = store.close, body = store.body, note = storeNote },
 		career = { frame = career.frame, close = career.close, body = career.body },
 		help = { frame = help.frame, close = help.close, body = help.body, text = helpText },
 		toasts = toasts,

@@ -366,6 +366,27 @@ local function buildBossOffice(parent: Instance)
 	local sign = part({ Size = Vector3.new(10, 2, 0.4), CFrame = CFrame.new(50, 10, 19.5), Color = Color3.fromRGB(30, 34, 46), Parent = office })
 	label(sign, "MANAGER'S OFFICE", Enum.NormalId.Front, Color3.fromRGB(244, 203, 96))
 
+	-- The Corner Office game pass unlocks this desk. The prompt is always here;
+	-- the server refuses it for players who do not own the pass.
+	local executive = buildDesk(office, CFrame.new(50, 0, 32), "ExecutiveWorkstation")
+	local plate = part({
+		Size = Vector3.new(5, 1, 0.3),
+		CFrame = CFrame.new(50, 3.8, 33.5),
+		Color = Color3.fromRGB(244, 203, 96),
+		Parent = executive,
+		Name = "Nameplate",
+	})
+	label(plate, "CORNER OFFICE", Enum.NormalId.Front, Color3.fromRGB(40, 32, 10))
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "ExecutivePrompt"
+	prompt.ActionText = "Start Call"
+	prompt.ObjectText = "Corner Office"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = executive.PrimaryPart
+
 	office.Parent = parent
 	return office
 end
@@ -404,18 +425,26 @@ local function buildShopKiosk(parent: Instance)
 	return kiosk, prompt
 end
 
+-- Board layout. The two career boards sit on the back wall either side of the
+-- main sign; the five global difficulty boards run down the right-hand wall.
+local LEADERBOARD_SPECS = {
+	{ name = "LifetimeEarnings", title = "TOP LIFETIME EARNINGS", cframe = CFrame.new(25, 9, -58), size = Vector3.new(16, 12, 0.6), face = Enum.NormalId.Front },
+	{ name = "SuccessfulCalls", title = "MOST SUCCESSFUL CALLS", cframe = CFrame.new(45, 9, -58), size = Vector3.new(16, 12, 0.6), face = Enum.NormalId.Front },
+	{ name = "Board_Easy", title = "EASY - MOST WINS", cframe = CFrame.new(69, 9, -40), size = Vector3.new(0.6, 11, 15), face = Enum.NormalId.Left },
+	{ name = "Board_Normal", title = "NORMAL - MOST WINS", cframe = CFrame.new(69, 9, -20), size = Vector3.new(0.6, 11, 15), face = Enum.NormalId.Left },
+	{ name = "Board_Hard", title = "HARD - MOST WINS", cframe = CFrame.new(69, 9, 0), size = Vector3.new(0.6, 11, 15), face = Enum.NormalId.Left },
+	{ name = "Board_Expert", title = "EXPERT - MOST WINS", cframe = CFrame.new(69, 9, 20), size = Vector3.new(0.6, 11, 15), face = Enum.NormalId.Left },
+	{ name = "Board_Nightmare", title = "NIGHTMARE - MOST WINS", cframe = CFrame.new(69, 9, 40), size = Vector3.new(0.6, 11, 15), face = Enum.NormalId.Left },
+}
+
 local function buildLeaderboards(parent: Instance)
 	local boards = Instance.new("Model")
 	boards.Name = "Leaderboards"
 
-	local specs = {
-		{ name = "LifetimeEarnings", title = "TOP LIFETIME EARNINGS", x = 20 },
-		{ name = "SuccessfulCalls", title = "MOST SUCCESSFUL CALLS", x = 40 },
-	}
-	for _, spec in ipairs(specs) do
+	for _, spec in ipairs(LEADERBOARD_SPECS) do
 		local board = part({
-			Size = Vector3.new(16, 12, 0.6),
-			CFrame = CFrame.new(spec.x, 8, -58),
+			Size = spec.size,
+			CFrame = spec.cframe,
 			Color = Color3.fromRGB(22, 26, 36),
 			Parent = boards,
 			Name = spec.name,
@@ -423,7 +452,7 @@ local function buildLeaderboards(parent: Instance)
 
 		local gui = Instance.new("SurfaceGui")
 		gui.Name = "Board"
-		gui.Face = Enum.NormalId.Front
+		gui.Face = spec.face
 		gui.CanvasSize = Vector2.new(400, 300)
 		gui.LightInfluence = 0
 		gui.Parent = board
@@ -601,9 +630,12 @@ function EnvironmentBuilder.build()
 	manager.Name = "FloorManager"
 
 	buildBreakRoom(root)
-	buildBossOffice(root)
+	local office = buildBossOffice(root)
 	local _, shopPrompt = buildShopKiosk(root)
 	buildLeaderboards(root)
+
+	local executivePrompt = office:FindFirstChild("ExecutiveWorkstation")
+	executivePrompt = executivePrompt and executivePrompt:FindFirstChildWhichIsA("ProximityPrompt", true) or nil
 
 	local spawnPoint = Instance.new("SpawnLocation")
 	spawnPoint.Size = Vector3.new(8, 1, 8)
@@ -626,7 +658,7 @@ function EnvironmentBuilder.build()
 		EnvironmentBuilder._connection = RunService.Heartbeat:Connect(animateEmployees)
 	end
 
-	return root, shopPrompt
+	return root, shopPrompt, executivePrompt
 end
 
 function EnvironmentBuilder.getRoot(): Instance?

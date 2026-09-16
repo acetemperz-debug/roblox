@@ -31,7 +31,7 @@ If you use [Rojo](https://rojo.space), skip to [Rojo](#rojo) at the bottom —
 
 ## Step 1 — Shared modules
 
-**Type:** ModuleScript (eleven of them)
+**Type:** ModuleScript (twelve of them)
 **Location:** `ReplicatedStorage` → create a **Folder** named `MacrosoftShared`,
 then put all eleven inside it.
 
@@ -48,8 +48,10 @@ then put all eleven inside it.
 | `Ranks` | `src/shared/Ranks.luau` |
 | `Achievements` | `src/shared/Achievements.luau` |
 | `Difficulty` | `src/shared/Difficulty.luau` |
+| `Products` | `src/shared/Products.luau` |
 
-The names must match exactly — every other script requires them by name.
+That is twelve modules. The names must match exactly — every other script
+requires them by name.
 
 **Test it.** Open the Studio Command Bar and run:
 
@@ -64,9 +66,9 @@ Expect `25 56 14`. Any error here is a missing or misnamed module.
 
 ## Step 2 — Server modules
 
-**Type:** ModuleScript (ten of them)
+**Type:** ModuleScript (twelve of them)
 **Location:** `ServerScriptService` → create a **Folder** named
-`MacrosoftServer`, then put all ten inside it. They find each other through
+`MacrosoftServer`, then put all twelve inside it. They find each other through
 `script.Parent`, so they must be siblings.
 
 | ModuleScript name | Source file |
@@ -81,6 +83,8 @@ Expect `25 56 14`. Any error here is a missing or misnamed module.
 | `AchievementManager` | `src/server/AchievementManager.luau` |
 | `CallManager` | `src/server/CallManager.luau` |
 | `LeaderboardManager` | `src/server/LeaderboardManager.luau` |
+| `MonetisationManager` | `src/server/MonetisationManager.luau` |
+| `CosmeticsManager` | `src/server/CosmeticsManager.luau` |
 
 Do **not** add the entry-point Script yet — that is step 4.
 
@@ -112,9 +116,15 @@ require(game.ServerScriptService.MacrosoftServer.EnvironmentBuilder).build()
 
 `workspace.CallCentre` appears: floor, walls, ceiling lights, twenty desks with
 monitors and chairs, blocky colleagues, a break room, a manager's office, an
-upgrade kiosk, two leaderboard boards, signage and a `SpawnLocation`. The desk
-at the front-left is named `PlayerWorkstation` and carries a `ProximityPrompt`
-called `WorkstationPrompt`.
+upgrade kiosk, signage and a `SpawnLocation`. The desk at the front-left is
+named `PlayerWorkstation` and carries a `ProximityPrompt` called
+`WorkstationPrompt`.
+
+Check `workspace.CallCentre.Leaderboards` has **seven** boards: `LifetimeEarnings`
+and `SuccessfulCalls` on the back wall, and `Board_Easy` through
+`Board_Nightmare` down the right-hand wall. Inside the manager's office there is
+a second desk named `ExecutiveWorkstation` with an `ExecutivePrompt` — that one
+is gated behind the Corner Office game pass in step 4.
 
 (The colleagues only animate once a `RunService.Heartbeat` connection is alive,
 which happens automatically when the game runs.)
@@ -133,17 +143,20 @@ This script calls `Net.init()`, which creates
 `ReplicatedStorage/MacrosoftRemotes` and every RemoteEvent and RemoteFunction:
 
 * RemoteEvents: `StartCall`, `ChooseOption`, `HangUp`, `PurchaseUpgrade`,
-  `RequestData`, `SetDifficulty`, `CallStarted`, `CallUpdated`, `CallEnded`,
-  `DataUpdated`, `Notify`, `AchievementUnlocked`, `RankChanged`
-* RemoteFunctions: `GetData`, `GetCatalog`
+  `RequestData`, `SetDifficulty`, `PromptPurchase`, `UseItem`, `SetAlias`,
+  `CallStarted`, `CallUpdated`, `CallEnded`, `DataUpdated`, `Notify`,
+  `AchievementUnlocked`, `RankChanged`
+* RemoteFunctions: `GetData`, `GetCatalog`, `GetStore`
 
 **Test it.** Press Play. The Output window should show:
 
 ```
-[Macrosoft] v1.0.0 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
+[Macrosoft] v1.1.0 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
+[Macrosoft] Robux store: 0 of 11 items have an asset id set. Items without one show as unavailable.
 ```
 
-Check that `ReplicatedStorage/MacrosoftRemotes` exists with 15 children, and
+The second line is expected until you do step 7. Check that
+`ReplicatedStorage/MacrosoftRemotes` exists with 19 children, and
 that your player has a `leaderstats` folder with `Credits` and `Rank`. Walk to
 the front-left desk and the "Start Call" prompt should appear (pressing it does
 nothing visible yet — the interface is step 5).
@@ -197,10 +210,75 @@ Play a call through and confirm each of these:
 * **Saving.** Play, earn credits, stop the playtest, start it again. Credits
   persist. If you skipped the API services setting, the top bar says
   "saving disabled this session" instead of silently losing progress.
-* **Leaderboards.** The two boards on the back wall populate about 90 seconds
-  after a player with a non-zero total leaves the server.
+* **Leaderboards.** All seven boards refresh on start and then every 90 seconds.
+  A player's totals are published when they leave and after every finished call,
+  so the boards fill in once somebody has a non-zero total. Without API services
+  enabled they say so on the board rather than sitting on "Loading...".
 * **Difficulty.** Rank up to Caller, then check Hard un-greys and that Trust is
   hidden on it.
+
+---
+
+## Step 7 — Robux items (optional, do it last)
+
+The game runs fine without this. Every item in `src/shared/Products.luau` ships
+with `assetId = 0`, which the store renders as **Unavailable** rather than
+prompting a purchase that would fail.
+
+To turn an item on:
+
+1. **Creator Dashboard → your experience → Monetization.**
+   * Game Passes for the five permanent items.
+   * Developer Products for the six consumables.
+2. Copy each item's ID.
+3. Paste it into the matching `assetId` field in `Products.luau`.
+
+| Item | Type | Suggested price |
+| --- | --- | --- |
+| Overtime Contract | Game Pass | 199 R$ |
+| Employee Of The Month | Game Pass | 99 R$ |
+| Corner Office | Game Pass | 149 R$ |
+| Platinum Headset | Game Pass | 79 R$ |
+| Alias Licence | Game Pass | 99 R$ |
+| Coffee Refill | Developer Product | 25 R$ |
+| Supervisor Takeover | Developer Product | 35 R$ |
+| Warm Lead | Developer Product | 45 R$ |
+| Petty Cash | Developer Product | 49 R$ |
+| Bonus Payslip | Developer Product | 199 R$ |
+| Double Shift | Developer Product | 99 R$ |
+
+Prices are a starting point, not a rule — `suggestedRobux` is only what the
+store UI prints under the button. The real price is whatever you set on the
+Dashboard.
+
+**Test it.** With at least one item configured:
+
+1. Open **Store** in the top bar. Configured items show **Buy**; unconfigured
+   ones show **Unavailable** and say so if you click them.
+2. Buy a Coffee Refill (test purchases in Studio do not charge you). It should
+   land in your inventory, and a **Coffee (1)** button appears at the bottom of
+   the call screen during a call. Using it raises Patience and spends it.
+3. Buy the Alias Licence, then set a name under **Career → Technician Name**.
+   Your dialogue lines stop saying Kevin.
+4. Buy Employee Of The Month and respawn — a gold title appears over your head.
+   Without it you get your rank as a plain title instead.
+5. Buy Corner Office, then use the desk inside the glass office. Without the
+   pass that prompt refuses you.
+
+**Things to know before you ship it:**
+
+* `ProcessReceipt` saves the grant *before* returning `PurchaseGranted`, and
+  dedupes on `PurchaseId`. If the save fails it returns `NotProcessedYet` so
+  Roblox retries rather than charging for something that was not kept. Do not
+  "simplify" that.
+* Bought Credits are granted with `countAsEarnings = false`. They buy desk
+  upgrades but never rank, the earnings board, or the wealth achievement.
+* No paid item reveals anything about the caller. The headless tests assert
+  this — see `no paid item sells information about the caller` in
+  `tests/simulate.luau`.
+* Keep item names corporate and mundane. Naming a paid item after the fictional
+  store cards is the one thing that would make the storefront read as something
+  other than parody.
 
 ---
 
@@ -229,9 +307,9 @@ archetypes alone are enough), `DialogueLibrary`, `Upgrades`, `Ranks`,
 `MacrosoftServer`, `UIKit`, `Interface`, `MacrosoftClient`.
 
 Everything else — `RandomEvents`/`RandomEventManager`, `Achievements`/
-`AchievementManager`, `EnvironmentBuilder`, `LeaderboardManager`, the Hard,
-Expert and Nightmare personality tiers — is the expansion, and each piece is
-additive. Delete any of them and the rest still runs, except that
+`AchievementManager`, `EnvironmentBuilder`, `LeaderboardManager`, `Products`/
+`MonetisationManager`/`CosmeticsManager`, the Hard, Expert and Nightmare
+personality tiers — is the expansion, and each piece is additive. Delete any of them and the rest still runs, except that
 `MacrosoftServer` requires them all; comment out the matching `require` lines if
 you want to strip it back.
 
@@ -247,6 +325,12 @@ you want to strip it back.
   `personalities = { "tech_teen" }` or gate it behind rank with `minLevel`.
 * **New interruption:** add an entry to `RandomEvents.List`.
 * **New upgrade / rank / achievement:** add an entry to the matching list module.
+
+* **New paid item:** add an entry to `Products.GamePasses` (permanent, folds its
+  `effects` into the same bonus table the desk upgrades use) or
+  `Products.DeveloperProducts` (consumable, with a `grant.kind` of `credits`,
+  `boost` or `consumable`). Do not give a paid item an effect that reveals the
+  caller — the tests fail the build if you do.
 
 Keep new dialogue fictional and absurd. The fake instructions in stage 5 (blue
 wizard windows, moon keys, typing BANANA) are written that way deliberately.

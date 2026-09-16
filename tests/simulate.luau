@@ -21,12 +21,12 @@ local realRequire = loadModule
 
 local SHARED = {
 	"Config", "Util", "Net", "NPCNames", "Personalities", "DialogueLibrary",
-	"RandomEvents", "Upgrades", "Ranks", "Achievements", "Difficulty",
+	"RandomEvents", "Upgrades", "Ranks", "Achievements", "Difficulty", "Products",
 }
 local SERVER = {
 	"PlayerDataManager", "NPCGenerator", "NPCPersonalitySystem", "DialogueManager",
 	"RandomEventManager", "RewardManager", "UpgradeManager", "AchievementManager",
-	"CallManager",
+	"CallManager", "LeaderboardManager", "EnvironmentBuilder",
 }
 
 local sharedFolder = Stub.newInstance("Folder")
@@ -81,9 +81,12 @@ local Ranks = require(sharedFolder.Ranks)
 local Achievements = require(sharedFolder.Achievements)
 local Difficulty = require(sharedFolder.Difficulty)
 local NPCNames = require(sharedFolder.NPCNames)
+local Products = require(sharedFolder.Products)
 
 local PlayerDataManager = require(serverFolder.PlayerDataManager)
 local CallManager = require(serverFolder.CallManager)
+local NPCGenerator = require(serverFolder.NPCGenerator)
+local LeaderboardManager = require(serverFolder.LeaderboardManager)
 
 --------------------------------------------------------------------------------
 -- Assertions on content volume (the design brief's minimums).
@@ -127,6 +130,71 @@ for _, personality in ipairs(Personalities.List) do
 	end
 end
 check("all personalities have every voice category", voiceOk)
+
+-- Robux catalogue integrity.
+local storeIds = {}
+local storeOk = true
+for _, def in ipairs(Products.GamePasses) do
+	if storeIds[def.id] then
+		storeOk = false
+		print("       duplicate product id " .. def.id)
+	end
+	storeIds[def.id] = true
+	if def.assetId == nil then
+		storeOk = false
+		print("       " .. def.id .. " has no assetId field")
+	end
+end
+for _, def in ipairs(Products.DeveloperProducts) do
+	if storeIds[def.id] then
+		storeOk = false
+		print("       duplicate product id " .. def.id)
+	end
+	storeIds[def.id] = true
+	if not def.grant or not def.grant.kind then
+		storeOk = false
+		print("       " .. def.id .. " has no grant kind")
+	end
+	if def.usableInCall and not def.use then
+		storeOk = false
+		print("       " .. def.id .. " is usable in call but grants no effect")
+	end
+end
+check("store catalogue is well formed", storeOk, #Products.GamePasses .. " passes, " .. #Products.DeveloperProducts .. " products")
+
+-- Paid items must never reveal the caller. Anything touching these keys would.
+local FORBIDDEN_EFFECTS = { revealPersonality = true, revealTier = true, showTrust = true, showSuspicion = true }
+local paidFair = true
+for _, def in ipairs(Products.GamePasses) do
+	for key in pairs(def.effects or {}) do
+		if FORBIDDEN_EFFECTS[key] then
+			paidFair = false
+			print("       " .. def.id .. " sells information: " .. key)
+		end
+	end
+end
+check("no paid item sells information about the caller", paidFair)
+
+-- Every difficulty needs its own global board.
+local boardByDifficulty = {}
+for _, board in ipairs(LeaderboardManager.Boards) do
+	if board.difficulty then
+		boardByDifficulty[board.difficulty] = board
+	end
+end
+local boardsOk = true
+for _, difficultyKey in ipairs(Difficulty.Order) do
+	if not boardByDifficulty[difficultyKey] then
+		boardsOk = false
+		print("       no leaderboard for " .. difficultyKey)
+	end
+end
+check("every difficulty has a global leaderboard", boardsOk, #LeaderboardManager.Boards .. " boards total")
+
+-- The difficulty boards must read a stat no paid multiplier can inflate.
+local sampleStats = { lifetimeEarnings = 999, successfulCalls = 3, successByDifficulty = { Hard = 7 } }
+check("difficulty boards count wins, not credits", boardByDifficulty.Hard.value(sampleStats) == 7,
+	"Hard board reads " .. tostring(boardByDifficulty.Hard.value(sampleStats)))
 
 -- Upgrade prerequisites must point at real upgrades.
 local prereqOk = true
@@ -388,6 +456,89 @@ for id, row in pairs(perPersonality) do
 	end
 end
 check("every winnable personality wins sometimes", #unwinnable == 0, #unwinnable > 0 and table.concat(unwinnable, ", ") or "none stuck at 0%")
+
+--------------------------------------------------------------------------------
+-- Premium mechanics
+--------------------------------------------------------------------------------
+
+print("")
+print("Premium mechanics")
+
+-- Per-difficulty win counts must add up to the wins the simulation observed.
+local recorded = 0
+for _, count in pairs(profile.stats.successByDifficulty) do
+	recorded += count
+end
+check("per-difficulty wins are recorded", recorded == (outcomes.success or 0),
+	recorded .. " recorded vs " .. tostring(outcomes.success) .. " observed")
+
+-- Game pass effects fold into the same bonus table the desk upgrades use.
+local Upgrades = require(sharedFolder.Upgrades)
+local plainBonuses = Upgrades.aggregate({})
+check("no pass means no multiplier", plainBonuses.rewardMul == 1, "x" .. tostring(plainBonuses.rewardMul))
+
+local withPass = Products.applyBonuses(Upgrades.aggregate({}), { passes = { overtime_contract = true } })
+check("Overtime Contract doubles pay", withPass.rewardMul == 2, "x" .. tostring(withPass.rewardMul))
+
+local withBoost = Products.applyBonuses(Upgrades.aggregate({}), {
+	passes = {},
+	boostExpires = os.time() + 600,
+	boostMultiplier = 1,
+})
+check("Double Shift doubles pay while it lasts", withBoost.rewardMul == 2, "x" .. tostring(withBoost.rewardMul))
+
+local expiredBoost = Products.applyBonuses(Upgrades.aggregate({}), {
+	passes = {},
+	boostExpires = os.time() - 1,
+	boostMultiplier = 1,
+})
+check("an expired boost does nothing", expiredBoost.rewardMul == 1, "x" .. tostring(expiredBoost.rewardMul))
+
+-- Warm Lead must actually soften the roll.
+local hardTiers, warmTiers = {}, {}
+for _ = 1, 300 do
+	local rolled = NPCGenerator.generate("Nightmare", {}, nil, nil)
+	hardTiers[rolled.tier] = (hardTiers[rolled.tier] or 0) + 1
+	local warm = NPCGenerator.generate("Nightmare", {}, nil, { warmLead = true })
+	warmTiers[warm.tier] = (warmTiers[warm.tier] or 0) + 1
+end
+check("Warm Lead removes the worst tier", (warmTiers.Nightmare or 0) == 0 and (hardTiers.Nightmare or 0) > 0,
+	string.format("nightmare callers: %d normally, %d with a warm lead", hardTiers.Nightmare or 0, warmTiers.Nightmare or 0))
+
+-- Receipts must only ever be granted once.
+check("a receipt cannot be claimed twice",
+	PlayerDataManager.claimReceipt(player, "receipt-A") == true
+		and PlayerDataManager.claimReceipt(player, "receipt-A") == false
+		and PlayerDataManager.claimReceipt(player, "receipt-B") == true)
+
+-- Consumables are spent, not duplicated.
+PlayerDataManager.addItem(player, "coffee_refill", 1)
+check("a consumable is spent exactly once",
+	PlayerDataManager.consumeItem(player, "coffee_refill") == true
+		and PlayerDataManager.consumeItem(player, "coffee_refill") == false)
+
+-- Using an item outside a call must fail rather than vanish.
+PlayerDataManager.addItem(player, "coffee_refill", 1)
+local usedOutsideCall = CallManager.useItem(player, "coffee_refill")
+check("consumables cannot be used outside a call", usedOutsideCall == false)
+check("a failed use does not consume the item",
+	(PlayerDataManager.get(player).premium.inventory.coffee_refill or 0) == 1)
+
+-- Using a coffee mid-call restores patience and spends the item.
+CallManager.start(player, "Normal")
+local liveCall = CallManager.getState(player)
+liveCall.npc.patience = 20
+local usedInCall = CallManager.useItem(player, "coffee_refill")
+check("coffee restores patience mid-call", usedInCall == true and liveCall.npc.patience > 20,
+	"patience now " .. tostring(liveCall and math.floor(liveCall.npc.patience)))
+check("the coffee was consumed", (PlayerDataManager.get(player).premium.inventory.coffee_refill or 0) == 0)
+CallManager.hangUp(player)
+
+-- The Alias Licence must be gated on ownership, not just on having set a name.
+PlayerDataManager.setAlias(player, "Barry")
+check("an alias without the pass is ignored", PlayerDataManager.getAlias(player) == nil)
+PlayerDataManager.setPassOwned(player, "alias_licence", true)
+check("an alias with the pass applies", PlayerDataManager.getAlias(player) == "Barry")
 
 local personalityCoverage = 0
 for _ in pairs(seenPersonalities) do

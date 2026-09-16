@@ -11,6 +11,7 @@ local Util = require(Shared.Util)
 local Difficulty = require(Shared.Difficulty)
 local Ranks = require(Shared.Ranks)
 local Net = require(Shared.Net)
+local Products = require(Shared.Products)
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local NPCGenerator = require(script.Parent.NPCGenerator)
@@ -25,6 +26,30 @@ local CallManager = {}
 local calls: { [number]: any } = {}
 
 CallManager.CallFinished = Instance.new("BindableEvent")
+
+--------------------------------------------------------------------------------
+-- Alias Licence: swaps the default technician name out of the player's own
+-- dialogue. Cosmetic only -- it never changes what a line does.
+--------------------------------------------------------------------------------
+
+local DEFAULT_ALIAS = "Kevin"
+
+local function spellOut(name: string): string
+	local letters = {}
+	for index = 1, #name do
+		table.insert(letters, string.upper(string.sub(name, index, index)))
+	end
+	return table.concat(letters, "-")
+end
+
+local function applyAlias(text: string?, alias: string?): string?
+	if not text or not alias then
+		return text
+	end
+	local out = string.gsub(text, "K%-E%-V%-I%-N", spellOut(alias))
+	out = string.gsub(out, DEFAULT_ALIAS, alias)
+	return out
+end
 
 --------------------------------------------------------------------------------
 -- View builders
@@ -84,7 +109,7 @@ local function buildView(state, extra)
 		stageProgress = math.clamp(state.stageProgress / Config.Call.ProgressPerStage, 0, 1),
 		meters = buildMeters(state),
 		elapsed = state.elapsed,
-		prompt = state.currentView and state.currentView.prompt or "",
+		prompt = applyAlias(state.currentView and state.currentView.prompt or "", state.alias),
 		choices = state.currentView and state.currentView.choices or {},
 		eventTitle = state.currentView and state.currentView.eventTitle or nil,
 		isEvent = state.currentView and state.currentView.isEvent or false,
@@ -92,6 +117,16 @@ local function buildView(state, extra)
 		reaction = state.lastReaction,
 		feedback = state.lastFeedback,
 	}
+	if state.alias and view.choices then
+		local personalised = {}
+		for index, choice in ipairs(view.choices) do
+			local copy = table.clone(choice)
+			copy.text = applyAlias(copy.text, state.alias)
+			personalised[index] = copy
+		end
+		view.choices = personalised
+	end
+
 	for key, value in pairs(extra or {}) do
 		view[key] = value
 	end
@@ -111,17 +146,28 @@ local function presentNext(state)
 	-- Random interruption, or a normal situation for this stage.
 	local view
 	if RandomEventManager.shouldFire(state) then
-		local event = RandomEventManager.pick(state.npc, state)
-		if event then
-			state.usedEvents[event.id] = true
-			state.currentSource = event
-			state.currentIsEvent = true
-			state.lastEventId = event.id
+		if state.skipNextEvent then
+			-- Supervisor Takeover: the floor lead deals with this one.
+			state.skipNextEvent = false
 			state.eventCooldown = Config.Events.Cooldown
-			if event.onHold then
-				state.timesOnHold += 1
+			Net.event("Notify"):FireClient(player, {
+				title = "Supervisor Takeover",
+				body = "Your floor lead handled that interruption.",
+				kind = "success",
+			})
+		else
+			local event = RandomEventManager.pick(state.npc, state)
+			if event then
+				state.usedEvents[event.id] = true
+				state.currentSource = event
+				state.currentIsEvent = true
+				state.lastEventId = event.id
+				state.eventCooldown = Config.Events.Cooldown
+				if event.onHold then
+					state.timesOnHold += 1
+				end
+				view = RandomEventManager.buildView(event, state)
 			end
-			view = RandomEventManager.buildView(event, state)
 		end
 	end
 
@@ -255,7 +301,10 @@ function CallManager.start(player: Player, difficultyKey: string): (boolean, str
 
 	local bonuses = PlayerDataManager.getBonuses(player)
 	local rank = Ranks.get(data.rankIndex)
-	local npc = NPCGenerator.generate(level.key, bonuses)
+
+	-- Warm Lead is spent at connect time, before the caller is rolled.
+	local warmLead = PlayerDataManager.consumeItem(player, "warm_lead")
+	local npc = NPCGenerator.generate(level.key, bonuses, nil, { warmLead = warmLead })
 
 	local state = {
 		player = player,
@@ -273,6 +322,9 @@ function CallManager.start(player: Player, difficultyKey: string): (boolean, str
 		survivedEvents = {},
 		eventCooldown = 1,
 		exposeRolled = false,
+		skipNextEvent = false,
+		alias = PlayerDataManager.getAlias(player),
+		warmLead = warmLead,
 		perfect = true,
 		aggressiveChoices = 0,
 		mistakes = 0,
@@ -284,6 +336,14 @@ function CallManager.start(player: Player, difficultyKey: string): (boolean, str
 	calls[player.UserId] = state
 
 	PlayerDataManager.setDifficulty(player, level.key)
+
+	if warmLead then
+		Net.event("Notify"):FireClient(player, {
+			title = "Warm Lead Used",
+			body = "Dialler picked you a friendlier caller.",
+			kind = "success",
+		})
+	end
 
 	Net.event("CallStarted"):FireClient(player, buildView(state, {
 		greeting = state.lastLine,
@@ -373,6 +433,38 @@ function CallManager.choose(player: Player, index: number)
 	end
 
 	presentNext(state)
+end
+
+-- Consumables bought with Robux and spent from the call screen. Returns ok and
+-- a message for the client toast.
+function CallManager.useItem(player: Player, productId: string): (boolean, string)
+	local product = Products.ProductById[productId]
+	if not product or not product.usableInCall then
+		return false, "That cannot be used on a call."
+	end
+	local state = calls[player.UserId]
+	if not state or state.ended then
+		return false, "You are not on a call."
+	end
+	if (PlayerDataManager.get(player) == nil) then
+		return false, "Your profile is still loading."
+	end
+	if not PlayerDataManager.consumeItem(player, productId) then
+		return false, "You have none left."
+	end
+
+	local message = product.name .. " used."
+	if product.use.patience then
+		state.npc.patience = Util.clamp(state.npc.patience + product.use.patience, 0, Config.Call.MaxPatience)
+		message = string.format("Patience restored by %d.", product.use.patience)
+	end
+	if product.use.skipNextEvent then
+		state.skipNextEvent = true
+		message = "Your supervisor will take the next interruption."
+	end
+
+	Net.event("CallUpdated"):FireClient(player, buildView(state))
+	return true, message
 end
 
 function CallManager.hangUp(player: Player)

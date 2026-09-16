@@ -39,12 +39,28 @@ local function pickTier(difficultyKey: string, bonuses, random: Random): string
 	return choice and choice.tier or "Normal"
 end
 
-function NPCGenerator.generate(difficultyKey: string, bonuses, seed: number?)
+-- One step down the tier ladder. Used by the Warm Lead item.
+local TIER_ORDER = { "Easy", "Normal", "Hard", "Expert", "Nightmare" }
+local function friendlierTier(tier: string): string
+	for index, name in ipairs(TIER_ORDER) do
+		if name == tier then
+			return TIER_ORDER[math.max(1, index - 1)]
+		end
+	end
+	return tier
+end
+
+-- options: { warmLead: boolean? }
+function NPCGenerator.generate(difficultyKey: string, bonuses, seed: number?, options)
 	local random = Util.newRandom(seed)
 	local level = Difficulty.get(difficultyKey)
 	bonuses = bonuses or {}
+	options = options or {}
 
 	local tier = pickTier(difficultyKey, bonuses, random)
+	if options.warmLead then
+		tier = friendlierTier(tier)
+	end
 	local pool = Personalities.ofTier(tier)
 	if #pool == 0 then
 		pool = Personalities.ofTier("Normal")
@@ -95,6 +111,7 @@ function NPCGenerator.generate(difficultyKey: string, bonuses, seed: number?)
 
 		quirks = Util.deepCopy(personality.quirks or {}),
 		rewardMul = personality.reward or 1,
+		warmLead = options.warmLead == true,
 		seed = seed or random:NextInteger(1, 2 ^ 30),
 	}
 end

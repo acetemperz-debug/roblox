@@ -17,6 +17,9 @@ local EVENTS = {
 	"PurchaseUpgrade", -- (upgradeId: string)
 	"RequestData", -- ()
 	"SetDifficulty", -- (difficultyKey: string)
+	"PromptPurchase", -- (kind: "pass"|"product", itemId: string)
+	"UseItem", -- (productId: string)
+	"SetAlias", -- (alias: string)
 
 	-- Server -> Client
 	"CallStarted", -- (callView)
@@ -31,6 +34,7 @@ local EVENTS = {
 local FUNCTIONS = {
 	"GetData", -- () -> publicData
 	"GetCatalog", -- () -> {upgrades, ranks, achievements, difficulties}
+	"GetStore", -- () -> {passes, products}
 }
 
 local Net = {}

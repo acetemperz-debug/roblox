@@ -16,6 +16,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShare
 local Config = require(Shared.Config)
 local Ranks = require(Shared.Ranks)
 local Upgrades = require(Shared.Upgrades)
+local Products = require(Shared.Products)
 
 local PlayerDataManager = {}
 
@@ -44,9 +45,22 @@ local function defaultProfile()
 			timesOnHold = 0,
 			totalCallSeconds = 0,
 			bestSingleReward = 0,
+			-- Successful calls per difficulty. These drive the global boards and
+			-- are deliberately immune to any paid reward multiplier.
+			successByDifficulty = {},
 		},
 		settings = {
 			difficulty = "Normal",
+		},
+		premium = {
+			passes = {}, -- [passId] = true
+			inventory = {}, -- [productId] = count
+			boostExpires = 0,
+			boostMultiplier = 0,
+			alias = "",
+			-- Developer Product receipt ids already granted, newest last. Bounded
+			-- so a long-lived profile cannot grow without limit.
+			receipts = {},
 		},
 		createdAt = os.time(),
 		lastSeen = os.time(),
@@ -55,6 +69,16 @@ end
 
 -- Fill in anything missing after a schema change.
 local function reconcile(profile)
+	-- Nested-but-dynamic tables reconcile explicitly; the generic pass below
+	-- only walks one level deep.
+	if typeof(profile.stats) == "table" and typeof(profile.stats.successByDifficulty) ~= "table" then
+		profile.stats.successByDifficulty = {}
+	end
+	if typeof(profile.premium) == "table" then
+		profile.premium.passes = profile.premium.passes or {}
+		profile.premium.inventory = profile.premium.inventory or {}
+		profile.premium.receipts = profile.premium.receipts or {}
+	end
 	local base = defaultProfile()
 	for key, value in pairs(base) do
 		if profile[key] == nil then
@@ -234,6 +258,9 @@ function PlayerDataManager.recordCall(player: Player, result)
 	if result.outcome == "success" then
 		stats.successfulCalls += 1
 		stats.failStreak = 0
+		if result.difficulty then
+			stats.successByDifficulty[result.difficulty] = (stats.successByDifficulty[result.difficulty] or 0) + 1
+		end
 		if (result.difficultyOrder or 0) > stats.highestDifficultyOrder then
 			stats.highestDifficultyOrder = result.difficultyOrder
 			stats.highestDifficulty = result.difficulty
@@ -274,7 +301,7 @@ function PlayerDataManager.getBonuses(player: Player)
 	if not profile then
 		return Upgrades.aggregate({})
 	end
-	return Upgrades.aggregate(profile.upgrades)
+	return Products.applyBonuses(Upgrades.aggregate(profile.upgrades), profile.premium)
 end
 
 -- The trimmed profile the client is allowed to see.
@@ -302,6 +329,12 @@ function PlayerDataManager.publicView(player: Player)
 		settings = profile.settings,
 		bonuses = PlayerDataManager.getBonuses(player),
 		saveDisabled = profile.loadFailed == true,
+		premium = {
+			passes = profile.premium.passes,
+			inventory = profile.premium.inventory,
+			alias = profile.premium.alias,
+			boostRemaining = math.max(0, (profile.premium.boostExpires or 0) - os.time()),
+		},
 	}
 end
 
@@ -316,6 +349,106 @@ function PlayerDataManager.setDifficulty(player: Player, key: string)
 	end
 	profile.settings.difficulty = key
 	PlayerDataManager.notify(player)
+end
+
+--------------------------------------------------------------------------------
+-- Premium state (Robux purchases). MonetisationManager owns the policy; this
+-- module only owns the storage.
+--------------------------------------------------------------------------------
+
+local MAX_RECEIPTS = 60
+
+function PlayerDataManager.setPassOwned(player: Player, passId: string, owned: boolean)
+	local profile = profiles[player.UserId]
+	if not profile then
+		return
+	end
+	if profile.premium.passes[passId] == owned or (not owned and profile.premium.passes[passId] == nil) then
+		return
+	end
+	profile.premium.passes[passId] = owned or nil
+	PlayerDataManager.notify(player)
+end
+
+function PlayerDataManager.ownsPass(player: Player, passId: string): boolean
+	local profile = profiles[player.UserId]
+	return profile ~= nil and profile.premium.passes[passId] == true
+end
+
+-- Returns false if this receipt was already granted, so ProcessReceipt can be
+-- replayed by Roblox without double-granting.
+function PlayerDataManager.claimReceipt(player: Player, receiptId: string): boolean
+	local profile = profiles[player.UserId]
+	if not profile then
+		return false
+	end
+	for _, seen in ipairs(profile.premium.receipts) do
+		if seen == receiptId then
+			return false
+		end
+	end
+	table.insert(profile.premium.receipts, receiptId)
+	while #profile.premium.receipts > MAX_RECEIPTS do
+		table.remove(profile.premium.receipts, 1)
+	end
+	return true
+end
+
+function PlayerDataManager.addItem(player: Player, productId: string, amount: number)
+	local profile = profiles[player.UserId]
+	if not profile then
+		return
+	end
+	profile.premium.inventory[productId] = (profile.premium.inventory[productId] or 0) + amount
+	PlayerDataManager.notify(player)
+end
+
+-- Spends one of an item. Returns false when the player has none.
+function PlayerDataManager.consumeItem(player: Player, productId: string): boolean
+	local profile = profiles[player.UserId]
+	if not profile then
+		return false
+	end
+	local count = profile.premium.inventory[productId] or 0
+	if count <= 0 then
+		return false
+	end
+	count -= 1
+	profile.premium.inventory[productId] = count > 0 and count or nil
+	PlayerDataManager.notify(player)
+	return true
+end
+
+function PlayerDataManager.addBoost(player: Player, seconds: number, multiplier: number)
+	local profile = profiles[player.UserId]
+	if not profile then
+		return
+	end
+	local now = os.time()
+	local base = math.max(profile.premium.boostExpires or 0, now)
+	profile.premium.boostExpires = base + seconds
+	profile.premium.boostMultiplier = multiplier
+	PlayerDataManager.notify(player)
+end
+
+function PlayerDataManager.setAlias(player: Player, alias: string)
+	local profile = profiles[player.UserId]
+	if not profile then
+		return
+	end
+	profile.premium.alias = alias
+	PlayerDataManager.notify(player)
+end
+
+function PlayerDataManager.getAlias(player: Player): string?
+	local profile = profiles[player.UserId]
+	if not profile or profile.premium.alias == "" then
+		return nil
+	end
+	if not profile.premium.passes.alias_licence then
+		return nil
+	end
+	return profile.premium.alias
 end
 
 --------------------------------------------------------------------------------

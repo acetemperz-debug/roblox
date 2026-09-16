@@ -23,11 +23,18 @@ local state = {
 	elapsed = 0,
 	typing = nil,
 	lastView = nil,
+	store = nil,
 }
 
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
+
+-- Forward declarations. enterCall needs the mid-call consumable buttons, and
+-- applyData needs to re-pull the store while its panel is open; both are
+-- defined further down.
+local renderItemRow
+local refreshStore
 
 local function toast(title: string, body: string, kind: string?)
 	local colour = T.Accent
@@ -250,6 +257,7 @@ local function enterCall(view)
 	ui.call.frame.Visible = true
 	ui.result.frame.Visible = false
 	renderCall(view, true)
+	renderItemRow()
 end
 
 local function exitCall()
@@ -449,6 +457,163 @@ local function renderShop()
 	end
 end
 
+local function renderStore()
+	for _, child in ipairs(ui.store.body:GetChildren()) do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	if not state.store then
+		return
+	end
+
+	local order = 0
+	local function nextOrder()
+		order += 1
+		return order
+	end
+
+	local function heading(text: string, subtitle: string)
+		UIKit.label({
+			Text = text,
+			Font = Enum.Font.GothamBold,
+			TextSize = 17,
+			TextColor3 = T.Gold,
+			Size = UDim2.new(1, 0, 0, 24),
+			LayoutOrder = nextOrder(),
+			Parent = ui.store.body,
+		})
+		UIKit.label({
+			Text = subtitle,
+			TextSize = 12,
+			TextColor3 = T.SubText,
+			TextWrapped = true,
+			Size = UDim2.new(1, 0, 0, 18),
+			LayoutOrder = nextOrder(),
+			Parent = ui.store.body,
+		})
+	end
+
+	local function card(item, kind: string)
+		local frame = UIKit.panel({
+			Size = UDim2.new(1, -8, 0, 86),
+			BackgroundColor3 = T.PanelLight,
+			LayoutOrder = nextOrder(),
+			Parent = ui.store.body,
+		})
+		UIKit.padding(12).Parent = frame
+		local owned = kind == "pass" and item.owned == true
+		UIKit.stroke(owned and T.Success or T.Panel, 2).Parent = frame
+
+		UIKit.label({
+			Text = item.name,
+			Font = Enum.Font.GothamBold,
+			TextSize = 16,
+			Size = UDim2.new(1, -150, 0, 20),
+			Parent = frame,
+		})
+		UIKit.label({
+			Text = item.blurb,
+			TextSize = 13,
+			TextColor3 = T.SubText,
+			TextWrapped = true,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			Position = UDim2.new(0, 0, 0, 22),
+			Size = UDim2.new(1, -150, 0, 40),
+			Parent = frame,
+		})
+
+		local label
+		if not item.configured then
+			label = "Unavailable"
+		elseif owned then
+			label = "Owned"
+		elseif kind == "product" and item.owned > 0 then
+			label = string.format("Buy (%d held)", item.owned)
+		else
+			label = "Buy"
+		end
+
+		local buy = UIKit.button({
+			Text = label,
+			Font = Enum.Font.GothamBold,
+			TextSize = 15,
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, 0, 0.5, 0),
+			Size = UDim2.new(0, 130, 0, 40),
+			BackgroundColor3 = owned and T.Success or (item.configured and T.Gold or T.Background),
+			TextColor3 = item.configured and Color3.fromRGB(30, 26, 12) or T.SubText,
+			Parent = frame,
+		})
+		buy.Active = item.configured and not owned
+
+		if item.robux then
+			UIKit.label({
+				Text = "suggested " .. item.robux .. " R$",
+				TextSize = 11,
+				TextColor3 = T.SubText,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				AnchorPoint = Vector2.new(1, 1),
+				Position = UDim2.new(1, 0, 1, 2),
+				Size = UDim2.new(0, 140, 0, 14),
+				Parent = frame,
+			})
+		end
+
+		buy.MouseButton1Click:Connect(function()
+			if not item.configured then
+				toast("Not Set Up", item.name .. " has no asset id yet. See docs/SETUP.md.", "warn")
+				return
+			end
+			if owned then
+				return
+			end
+			Net.event("PromptPurchase"):FireServer(kind, item.id)
+		end)
+	end
+
+	heading("Passes", "Bought once, kept forever.")
+	for _, pass in ipairs(state.store.passes) do
+		card(pass, "pass")
+	end
+
+	heading("Consumables", "Bought as often as you like. Used from the call screen.")
+	for _, product in ipairs(state.store.products) do
+		card(product, "product")
+	end
+end
+
+function renderItemRow()
+	for _, child in ipairs(ui.call.itemRow:GetChildren()) do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	if not state.store or not state.data then
+		return
+	end
+	local inventory = state.data.premium and state.data.premium.inventory or {}
+
+	for index, product in ipairs(state.store.products) do
+		local held = inventory[product.id] or 0
+		if product.usableInCall and held > 0 then
+			local button = UIKit.button({
+				Text = string.format("%s (%d)", product.useLabel or product.name, held),
+				TextSize = 13,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				Size = UDim2.new(0, 132, 1, 0),
+				LayoutOrder = index,
+				BackgroundColor3 = T.Gold,
+				TextColor3 = Color3.fromRGB(32, 26, 10),
+				Parent = ui.call.itemRow,
+			})
+			button.MouseButton1Click:Connect(function()
+				Net.event("UseItem"):FireServer(product.id)
+			end)
+		end
+	end
+end
+
 local function renderCareer()
 	for _, child in ipairs(ui.career.body:GetChildren()) do
 		if child:IsA("GuiObject") then
@@ -521,6 +686,60 @@ local function renderCareer()
 			Parent = ui.career.body,
 		})
 	end
+
+	-- Alias Licence editor, shown to everyone so the pass is discoverable.
+	local ownsAlias = state.data.premium and state.data.premium.passes and state.data.premium.passes.alias_licence == true
+	UIKit.label({
+		Text = "TECHNICIAN NAME",
+		Font = Enum.Font.GothamBold,
+		TextSize = 17,
+		TextColor3 = T.Accent,
+		Size = UDim2.new(1, 0, 0, 26),
+		LayoutOrder = nextOrder(),
+		Parent = ui.career.body,
+	})
+
+	local aliasRow = UIKit.new("Frame", {
+		Size = UDim2.new(1, -8, 0, 36),
+		BackgroundTransparency = 1,
+		LayoutOrder = nextOrder(),
+		Parent = ui.career.body,
+	})
+
+	local aliasBox = UIKit.new("TextBox", {
+		Size = UDim2.new(1, -140, 1, 0),
+		BackgroundColor3 = T.PanelLight,
+		BorderSizePixel = 0,
+		Font = Enum.Font.Gotham,
+		TextSize = 15,
+		TextColor3 = ownsAlias and T.Text or T.SubText,
+		PlaceholderText = ownsAlias and "Two to sixteen letters" or "Requires the Alias Licence pass",
+		Text = (state.data.premium and state.data.premium.alias) or "",
+		ClearTextOnFocus = false,
+		TextEditable = ownsAlias,
+		Parent = aliasRow,
+	})
+	UIKit.corner(8).Parent = aliasBox
+	UIKit.padding(8).Parent = aliasBox
+
+	local aliasSave = UIKit.button({
+		Text = ownsAlias and "Save" or "Locked",
+		Font = Enum.Font.GothamBold,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.new(0, 130, 1, 0),
+		BackgroundColor3 = ownsAlias and T.Accent or T.Background,
+		TextColor3 = ownsAlias and T.Text or T.SubText,
+		Parent = aliasRow,
+	})
+	aliasSave.Active = ownsAlias
+	aliasSave.MouseButton1Click:Connect(function()
+		if not ownsAlias then
+			toast("Locked", "The Alias Licence pass is in the Store.", "warn")
+			return
+		end
+		Net.event("SetAlias"):FireServer(aliasBox.Text)
+	end)
 
 	UIKit.label({
 		Text = "RANKS",
@@ -604,7 +823,21 @@ local function applyData(data)
 	state.difficulty = data.settings.difficulty or state.difficulty
 	ui.topBar.credits.Text = Util.formatNumber(data.credits) .. " Credits"
 	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and "   (saving disabled this session)" or "")
+
+	local boostRemaining = data.premium and data.premium.boostRemaining or 0
+	ui.topBar.boost.Visible = boostRemaining > 0
+	if boostRemaining > 0 then
+		ui.topBar.boost.Text = "Double Shift active - " .. Util.formatTime(boostRemaining)
+	end
+
 	refreshDifficultyButtons()
+	renderItemRow()
+	if ui.store.frame.Visible then
+		task.spawn(function()
+			refreshStore()
+			renderStore()
+		end)
+	end
 	if ui.shop.frame.Visible then
 		task.spawn(function()
 			state.catalog = Net.func("GetCatalog"):InvokeServer()
@@ -624,6 +857,17 @@ local function refreshCatalog()
 		state.catalog = catalog
 		buildDifficultyButtons()
 	end
+end
+
+function refreshStore()
+	local ok, store = pcall(function()
+		return Net.func("GetStore"):InvokeServer()
+	end)
+	if ok and store then
+		state.store = store
+		renderItemRow()
+	end
+	return ok
 end
 
 --------------------------------------------------------------------------------
@@ -647,7 +891,10 @@ end)
 Net.event("CallEnded").OnClientEvent:Connect(function(payload)
 	exitCall()
 	renderResult(payload)
-	task.spawn(refreshCatalog)
+	task.spawn(function()
+		refreshCatalog()
+		refreshStore()
+	end)
 end)
 
 Net.event("Notify").OnClientEvent:Connect(function(payload)
@@ -698,6 +945,14 @@ for _, button in ipairs(ui.call.choiceButtons) do
 	end)
 end
 
+ui.topBar.storeButton.MouseButton1Click:Connect(function()
+	task.spawn(function()
+		refreshStore()
+		renderStore()
+		ui.store.frame.Visible = true
+	end)
+end)
+
 ui.topBar.shopButton.MouseButton1Click:Connect(function()
 	task.spawn(function()
 		refreshCatalog()
@@ -721,6 +976,9 @@ end)
 ui.shop.close.MouseButton1Click:Connect(function()
 	ui.shop.frame.Visible = false
 end)
+ui.store.close.MouseButton1Click:Connect(function()
+	ui.store.frame.Visible = false
+end)
 ui.career.close.MouseButton1Click:Connect(function()
 	ui.career.frame.Visible = false
 end)
@@ -738,6 +996,15 @@ end)
 task.spawn(function()
 	while true do
 		task.wait(0.25)
+		if ui.topBar.boost.Visible and state.data and state.data.premium then
+			state.data.premium.boostRemaining = math.max(0, (state.data.premium.boostRemaining or 0) - 0.25)
+			if state.data.premium.boostRemaining <= 0 then
+				ui.topBar.boost.Visible = false
+			else
+				ui.topBar.boost.Text = "Double Shift active - " .. Util.formatTime(state.data.premium.boostRemaining)
+			end
+		end
+
 		if state.inCall then
 			state.elapsed += 0.25
 			ui.call.timer.Text = Util.formatTime(state.elapsed)
@@ -762,6 +1029,7 @@ task.spawn(function()
 		applyData(data)
 	end
 	refreshCatalog()
+	refreshStore()
 	Net.event("RequestData"):FireServer()
 	toast("Welcome to Macrosoft", "Everything here is fictional satire. Press How To Play for the rules.", "info")
 end)
