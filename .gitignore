@@ -1,0 +1,4 @@
+tests/.bundle.luau
+*.rbxl
+*.rbxlx
+*.rbxl.lock
