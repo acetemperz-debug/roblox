@@ -9,6 +9,7 @@ local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
+local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 
 local EnvironmentBuilder = {}
@@ -28,7 +29,7 @@ local THEME = {
 	Desk = Color3.fromRGB(124, 96, 70),
 	DeskLegs = Color3.fromRGB(70, 74, 86),
 	Monitor = Color3.fromRGB(32, 34, 42),
-	Screen = Color3.fromRGB(86, 140, 255),
+	Screen = Config.Environment.ScreenColour,
 	Chair = Color3.fromRGB(38, 42, 54),
 	Glass = Color3.fromRGB(180, 220, 235),
 	Accent = Color3.fromRGB(86, 140, 255),
@@ -288,15 +289,15 @@ local function buildRoomShell(parent: Instance)
 			local lightPart = part({
 				Size = Vector3.new(8, 0.3, 4),
 				CFrame = CFrame.new(x, 23.4, z),
-				Color = Color3.fromRGB(226, 240, 255),
+				Color = Config.Environment.CeilingLightColour,
 				Material = Enum.Material.Neon,
 				Parent = parent,
 			})
 			if (x + 50) % 50 == 0 and (z + 40) % 40 == 0 then
 				local light = Instance.new("PointLight")
-				light.Brightness = 0.55
-				light.Range = 24
-				light.Color = Color3.fromRGB(226, 238, 255)
+				light.Brightness = Config.Environment.CeilingLightBrightness
+				light.Range = Config.Environment.CeilingLightRange
+				light.Color = Config.Environment.CeilingLightColour
 				light.Parent = lightPart
 			end
 		end
@@ -304,21 +305,20 @@ local function buildRoomShell(parent: Instance)
 
 	-- Accent strips down the long walls, purely decorative.
 	for _, z in ipairs({ -59, 59 }) do
-		local strip = part({
-			Size = Vector3.new(120, 0.6, 0.3),
+		part({
+			Size = Vector3.new(120, 0.5, 0.3),
 			CFrame = CFrame.new(0, 17, z),
-			Color = THEME.Accent,
+			Color = Config.Environment.StripColourA,
 			Material = Enum.Material.Neon,
 			Parent = parent,
 			Name = "AccentStrip",
 		})
-		strip.Transparency = 0.15
 	end
 	for _, x in ipairs({ -69, 69 }) do
 		part({
-			Size = Vector3.new(0.3, 0.6, 110),
+			Size = Vector3.new(0.3, 0.5, 110),
 			CFrame = CFrame.new(x, 17, 0),
-			Color = Color3.fromRGB(226, 96, 168),
+			Color = Config.Environment.StripColourB,
 			Material = Enum.Material.Neon,
 			Parent = parent,
 			Name = "AccentStrip",
@@ -777,14 +777,13 @@ function EnvironmentBuilder.build()
 
 	root.Parent = Workspace
 
-	-- Tuned deliberately: a dim room with bright neon in it reads far better
-	-- than a bright room, and gives the bloom something to catch.
-	Lighting.Ambient = Color3.fromRGB(58, 60, 74)
-	Lighting.OutdoorAmbient = Color3.fromRGB(62, 64, 80)
-	Lighting.Brightness = 1.0
-	Lighting.ClockTime = 15
+	local env = Config.Environment
+	Lighting.Ambient = env.Ambient
+	Lighting.OutdoorAmbient = env.OutdoorAmbient
+	Lighting.Brightness = env.Brightness
+	Lighting.ClockTime = env.ClockTime
 	Lighting.GlobalShadows = true
-	Lighting.FogEnd = 400
+	Lighting.FogEnd = env.FogEnd
 
 	local function ensureEffect(className: string, name: string, props)
 		local existing = Lighting:FindFirstChild(name)
@@ -800,21 +799,26 @@ function EnvironmentBuilder.build()
 		return effect
 	end
 
+	-- Gentle. Bloom exists to make the neon read as lit, not to smear it.
 	ensureEffect("BloomEffect", "MacrosoftBloom", {
-		Intensity = 0.7,
-		Size = 20,
-		Threshold = 1.35,
+		Intensity = env.Bloom.Intensity,
+		Size = env.Bloom.Size,
+		Threshold = env.Bloom.Threshold,
 	})
 	ensureEffect("ColorCorrectionEffect", "MacrosoftColour", {
-		Saturation = 0.22,
-		Contrast = 0.1,
-		Brightness = 0.01,
-		TintColor = Color3.fromRGB(255, 249, 245),
+		Saturation = env.Colour.Saturation,
+		Contrast = env.Colour.Contrast,
+		Brightness = env.Colour.Brightness,
+		TintColor = Color3.fromRGB(255, 252, 250),
 	})
-	ensureEffect("SunRaysEffect", "MacrosoftRays", {
-		Intensity = 0.03,
-		Spread = 0.4,
-	})
+
+	-- Any leftovers from an older install would stack on top of these.
+	for _, name in ipairs({ "MacrosoftRays" }) do
+		local stale = Lighting:FindFirstChild(name)
+		if stale then
+			stale:Destroy()
+		end
+	end
 
 	-- Animate colleagues.
 	if not EnvironmentBuilder._connection then

@@ -5,7 +5,7 @@
 
 local Config = {}
 
-Config.Version = "1.3.0"
+Config.Version = "1.3.1"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
@@ -118,6 +118,38 @@ Config.UI = {
 	},
 	TypewriterSpeed = 0.018, -- seconds per character
 	TweenTime = 0.25,
+}
+
+-- Lighting and post-processing. Pulled out here because getting an indoor
+-- Roblox room to read well is pure trial and error, and you should be able to
+-- tune it in one file (or live -- see docs/TESTING.md) rather than hunting
+-- through EnvironmentBuilder.
+--
+-- Two rules learned the hard way:
+--   * Ambient does the work indoors. PointLights are accent only; a grid of
+--     them at high brightness just washes everything to white.
+--   * A Neon part renders at its own colour with full emission, so a near-white
+--     Neon screen blooms into a shapeless blob. Neon wants a MID colour.
+Config.Environment = {
+	Ambient = Color3.fromRGB(104, 108, 126),
+	OutdoorAmbient = Color3.fromRGB(94, 98, 116),
+	Brightness = 2,
+	ClockTime = 15,
+	FogEnd = 500,
+
+	-- Ceiling fixtures: all of them glow, a sparse grid actually casts light.
+	CeilingLightColour = Color3.fromRGB(198, 216, 240),
+	CeilingLightBrightness = 0.5,
+	CeilingLightRange = 26,
+
+	-- Monitors. Mid-blue, not white: this is what stops the blobbing.
+	ScreenColour = Color3.fromRGB(58, 112, 178),
+	-- Wall trim strips, dimmed so they read as trim and not as lasers.
+	StripColourA = Color3.fromRGB(52, 96, 178),
+	StripColourB = Color3.fromRGB(150, 64, 118),
+
+	Bloom = { Intensity = 0.22, Size = 10, Threshold = 2 },
+	Colour = { Saturation = 0.12, Contrast = 0.04, Brightness = 0.015 },
 }
 
 Config.Workstation = {

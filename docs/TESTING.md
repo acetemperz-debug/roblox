@@ -138,6 +138,34 @@ Within seconds you get the final warning, then either *They Found Nothing* or
 *Raided* — and a police car with your name on it pulls up outside for the whole
 server to see.
 
+### Tuning the lighting live
+
+Indoor Roblox lighting is trial and error, so all of it lives in
+`Config.Environment` and you can nudge it in a running session without
+reinstalling. Paste into the command bar while playing:
+
+```lua
+local L = game:GetService("Lighting")
+L.Ambient = Color3.fromRGB(104, 108, 126)   -- room brightness; this does most of the work
+L.Brightness = 2
+L.MacrosoftBloom.Intensity = 0.22           -- raise for more glow, lower to stop blobbing
+L.MacrosoftBloom.Threshold = 2              -- lower = more things glow
+L.MacrosoftColour.Saturation = 0.12
+```
+
+Two things that caused real problems, worth knowing before you turn dials:
+
+* **Ambient does the work indoors.** A grid of bright PointLights washes the
+  whole room to flat white. There are 25 ceiling fixtures but only a sparse
+  few of them cast light.
+* **A Neon part glows at its own colour.** A near-white Neon monitor blooms
+  into a shapeless blob no matter what you do to the bloom settings. Screens
+  are a mid-blue (`Config.Environment.ScreenColour`) for exactly this reason —
+  if you brighten that colour, expect the blobs back.
+
+Once you like a setting, copy it into `src/shared/Config.luau` so it survives a
+reinstall.
+
 ### Other useful command-bar pokes
 
 Give yourself money:
@@ -216,7 +244,7 @@ seconds.
 healthy start:
 
 ```
-[Macrosoft] v1.3.0 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
+[Macrosoft] v1.3.1 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
 [Macrosoft] Robux store: 0 of 14 items have an asset id set. Items without one show as unavailable.
 ```
 
