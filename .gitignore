@@ -1,4 +1,5 @@
 tests/.bundle.luau
 *.rbxl
 *.rbxlx
+!build/MacrosoftSupport.rbxlx
 *.rbxl.lock

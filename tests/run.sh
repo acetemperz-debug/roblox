@@ -17,6 +17,10 @@ luau-analyze --solver=old $(find src -name '*.luau') 2>&1 \
 	|| true
 
 echo
+echo "== place file =="
+python3 tools/build_place.py
+
+echo
 echo "== simulation =="
 python3 tests/bundle.py > /dev/null
 luau tests/.bundle.luau

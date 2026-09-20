@@ -48,12 +48,23 @@ and used on a real person. Do not do any of this to anybody.
 No parts, GUIs or RemoteEvents have to be created by hand. The world and the
 interface are both generated at runtime.
 
+## Testing it right now
+
+Download **`build/MacrosoftSupport.rbxlx`**, open it in Roblox Studio, turn on
+**Game Settings → Security → Studio Access to API Services**, and press Play.
+Everything is already in the right service and the world and UI build
+themselves at runtime.
+
+`docs/TESTING.md` has the full walkthrough, command-bar shortcuts for forcing a
+raid or a specific caller, and what to check.
+
 ## Installing
 
 Either sync with [Rojo](https://rojo.space) using `default.project.json`, or
 copy the files in by hand. `docs/SETUP.md` walks through it one system at a
 time, in an order where nothing ever references something that does not exist
-yet, with a test for each step.
+yet, with a test for each step. `tools/build_place.py` regenerates the place
+file after any code change.
 
 ## Testing outside Studio
 
