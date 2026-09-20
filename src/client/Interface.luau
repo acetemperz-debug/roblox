@@ -82,7 +82,8 @@ function Interface.build(): any
 	local gui = UIKit.new("ScreenGui", {
 		Name = "MacrosoftUI",
 		ResetOnSpawn = false,
-		IgnoreGuiInset = true,
+		-- false, so Roblox's own top bar does not sit on top of ours.
+		IgnoreGuiInset = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		DisplayOrder = 10,
 		Parent = playerGui,
@@ -102,23 +103,23 @@ function Interface.build(): any
 	UIKit.stroke(T.PanelLight, 1).Parent = topBar
 
 	local brand = UIKit.label({
-		Text = "MACROSOFT SUPPORT",
-		Font = Enum.Font.GothamBold,
-		TextSize = 17,
+		Text = "MACROSOFT",
+		Font = UIKit.HeadlineFont,
+		TextSize = 20,
 		TextColor3 = T.Accent,
 		Position = UDim2.new(0, 16, 0, 0),
-		Size = UDim2.new(0, 230, 1, 0),
+		Size = UDim2.new(0, 220, 1, 0),
 		Parent = topBar,
 	})
 
 	local creditsLabel = UIKit.label({
 		Name = "Credits",
 		Text = "0 Credits",
-		Font = Enum.Font.GothamBold,
-		TextSize = 16,
+		Font = UIKit.HeadlineFont,
+		TextSize = 18,
 		TextColor3 = T.Gold,
-		Position = UDim2.new(0, 250, 0, 0),
-		Size = UDim2.new(0, 220, 1, 0),
+		Position = UDim2.new(0, 390, 0, 0),
+		Size = UDim2.new(0, 200, 1, 0),
 		Parent = topBar,
 	})
 
@@ -127,8 +128,8 @@ function Interface.build(): any
 		Text = "Intern",
 		TextSize = 15,
 		TextColor3 = T.SubText,
-		Position = UDim2.new(0, 470, 0, 8),
-		Size = UDim2.new(0, 260, 0, 20),
+		Position = UDim2.new(0, 592, 0, 8),
+		Size = UDim2.new(0, 230, 0, 20),
 		Parent = topBar,
 	})
 
@@ -138,10 +139,29 @@ function Interface.build(): any
 		Font = Enum.Font.GothamBold,
 		TextSize = 14,
 		TextColor3 = T.Gold,
-		Position = UDim2.new(0, 470, 0, 26),
-		Size = UDim2.new(0, 260, 0, 18),
+		Position = UDim2.new(0, 592, 0, 26),
+		Size = UDim2.new(0, 230, 0, 18),
 		Visible = false,
 		Parent = topBar,
+	})
+
+	local streakPill = UIKit.panel({
+		Name = "Streak",
+		Position = UDim2.new(0, 246, 0.5, -15),
+		Size = UDim2.new(0, 132, 0, 30),
+		BackgroundColor3 = Color3.fromRGB(255, 126, 64),
+		Visible = false,
+		Parent = topBar,
+	})
+	local streakLabel = UIKit.label({
+		Name = "Text",
+		Text = "",
+		Font = UIKit.HeadlineFont,
+		TextSize = 15,
+		TextColor3 = Color3.fromRGB(28, 18, 10),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		Parent = streakPill,
 	})
 
 	local buttonRow = UIKit.new("Frame", {
@@ -228,13 +248,42 @@ function Interface.build(): any
 
 	local startButton = UIKit.button({
 		Name = "StartCall",
-		Text = "START CALL",
-		Font = Enum.Font.GothamBold,
-		TextSize = 20,
+		Text = "📞  START CALL",
+		Font = UIKit.HeadlineFont,
+		TextSize = 24,
 		BackgroundColor3 = T.Accent,
-		Position = UDim2.new(0, 0, 1, -48),
-		Size = UDim2.new(1, 0, 0, 44),
+		Position = UDim2.new(0, 0, 1, -52),
+		Size = UDim2.new(1, 0, 0, 50),
 		Parent = home,
+	})
+	UIKit.gradient(Color3.fromRGB(122, 168, 255), Color3.fromRGB(58, 104, 226)).Parent = startButton
+	UIKit.stroke(Color3.fromRGB(170, 205, 255), 2, 0.3).Parent = startButton
+
+	----------------------------------------------------------------------------
+	-- Live ticker: what everyone else in the server is doing.
+	----------------------------------------------------------------------------
+	local tickerFrame = UIKit.panel({
+		Name = "Ticker",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 74),
+		Size = UDim2.new(0, 560, 0, 34),
+		BackgroundColor3 = Color3.fromRGB(16, 18, 26),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 5,
+		Parent = gui,
+	})
+	UIKit.stroke(T.Accent, 2, 0.4).Parent = tickerFrame
+	local tickerLabel = UIKit.label({
+		Name = "Text",
+		Text = "",
+		Font = UIKit.HeadlineFont,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 6,
+		Parent = tickerFrame,
 	})
 
 	----------------------------------------------------------------------------
@@ -244,7 +293,7 @@ function Interface.build(): any
 		Name = "OpsHud",
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, 16, 1, -24),
-		Size = UDim2.new(0, 300, 0, 172),
+		Size = UDim2.new(0, 300, 0, 206),
 		BackgroundTransparency = 0.05,
 		Parent = gui,
 	})
@@ -361,10 +410,22 @@ function Interface.build(): any
 	local initials = UIKit.label({
 		Name = "Initials",
 		Text = "??",
-		Font = Enum.Font.GothamBold,
-		TextSize = 36,
+		Font = UIKit.HeadlineFont,
+		TextSize = 34,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Size = UDim2.fromScale(1, 1),
+		Parent = portrait,
+	})
+
+	local face = UIKit.label({
+		Name = "Face",
+		Text = "🙂",
+		TextSize = 34,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 1, -18),
+		Size = UDim2.fromOffset(52, 44),
+		ZIndex = 3,
 		Parent = portrait,
 	})
 
@@ -587,8 +648,8 @@ function Interface.build(): any
 	local resultOutcome = UIKit.label({
 		Name = "Outcome",
 		Text = "",
-		Font = Enum.Font.GothamBold,
-		TextSize = 24,
+		Font = UIKit.HeadlineFont,
+		TextSize = 32,
 		Size = UDim2.new(1, 0, 0, 30),
 		LayoutOrder = 1,
 		Parent = result.body,
@@ -615,10 +676,10 @@ function Interface.build(): any
 	local resultReward = UIKit.label({
 		Name = "Reward",
 		Text = "",
-		Font = Enum.Font.GothamBold,
-		TextSize = 22,
+		Font = UIKit.HeadlineFont,
+		TextSize = 34,
 		TextColor3 = T.Gold,
-		Size = UDim2.new(1, 0, 0, 30),
+		Size = UDim2.new(1, 0, 0, 44),
 		LayoutOrder = 4,
 		Parent = result.body,
 	})
@@ -757,7 +818,10 @@ function Interface.build(): any
 			statsButton = statsButton,
 			helpButton = helpButton,
 			brand = brand,
+			streakPill = streakPill,
+			streakLabel = streakLabel,
 		},
+		ticker = { frame = tickerFrame, label = tickerLabel },
 		home = {
 			frame = home,
 			difficultyRow = difficultyRow,
@@ -768,6 +832,7 @@ function Interface.build(): any
 			frame = call,
 			portrait = portrait,
 			initials = initials,
+			face = face,
 			name = callerName,
 			sub = callerSub,
 			backstory = callerBackstory,

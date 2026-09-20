@@ -83,6 +83,12 @@ if executivePrompt then
 	end)
 end
 
+-- The live ticker. Everyone sees everyone else's big moments, which is most of
+-- what makes a server feel alive.
+local function broadcast(text: string, kind: string?)
+	Net.event("Broadcast"):FireAllClients({ text = text, kind = kind })
+end
+
 --------------------------------------------------------------------------------
 -- Managers
 --------------------------------------------------------------------------------
@@ -139,6 +145,10 @@ PlayerDataManager.DataChanged.Event:Connect(function(player, view)
 			to = view.rankName,
 			perks = view.rankPerks,
 		})
+		Net.event("Broadcast"):FireAllClients({
+			text = player.DisplayName .. " got promoted to " .. view.rankName,
+			kind = "gold",
+		})
 	end
 	lastRank[player.UserId] = view.rankIndex
 end)
@@ -172,6 +182,11 @@ OperationManager.Raided.Event:Connect(function(player, outcome)
 	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(player))
 	-- Everyone gets to watch the car turn up.
 	EnvironmentBuilder.showRaid(player.DisplayName, outcome.escaped and 12 or Operation.Raid.ShutdownSeconds)
+	broadcast(
+		outcome.escaped and (player.DisplayName .. " just talked their way out of a raid")
+			or (player.DisplayName .. "'s floor just got raided"),
+		outcome.escaped and "success" or "warn"
+	)
 	AchievementManager.evaluate(player, nil)
 end)
 
@@ -199,10 +214,33 @@ UpgradeManager.Purchased.Event:Connect(function(player, def)
 	})
 end)
 
-CallManager.CallFinished.Event:Connect(function(player)
+CallManager.CallFinished.Event:Connect(function(player, result, reward)
 	LeaderboardManager.publish(player)
 	-- Career-total achievements that do not depend on the call itself.
 	AchievementManager.evaluate(player, nil)
+
+	local data = PlayerDataManager.get(player)
+	local streak = data and data.stats.successStreak or 0
+	if result.outcome == "success" then
+		broadcast(string.format(
+			"%s talked %s (%d) into %s Credits",
+			player.DisplayName,
+			result.npc.firstName,
+			result.npc.age,
+			tostring(reward)
+		), "success")
+		if streak >= 3 then
+			broadcast(string.format("%s is on a %d call streak", player.DisplayName, streak), "gold")
+		end
+	elseif result.npc.personalityId == "police_desk" then
+		broadcast(player.DisplayName .. " just cold-called a police station", "warn")
+	elseif result.outcome == "exposed" and result.stage and result.stage >= 6 then
+		broadcast(string.format(
+			"%s got rumbled by %s at the last hurdle",
+			player.DisplayName,
+			result.npc.firstName
+		), "warn")
+	end
 end)
 
 --------------------------------------------------------------------------------

@@ -10,10 +10,13 @@ local Net = require(Shared.Net)
 
 local UIKit = require(script.Parent.UIKit)
 local Interface = require(script.Parent.Interface)
+local Juice = require(script.Parent.Juice)
 
 local T = UIKit.Theme
 
 local ui = Interface.build()
+Juice.init(ui.gui)
+Juice.attachTicker(ui.ticker.frame, ui.ticker.label)
 
 local state = {
 	data = nil,
@@ -235,6 +238,8 @@ local function renderCall(view, animate: boolean)
 
 	ui.call.prompt.Text = view.prompt or ""
 
+	ui.call.face.Text = Juice.face(view.reaction)
+
 	if view.feedback then
 		local parts = {}
 		if view.feedback.trust then
@@ -245,8 +250,42 @@ local function renderCall(view, animate: boolean)
 		end
 		ui.call.feedback.Text = table.concat(parts, "   ")
 		ui.call.feedback.TextColor3 = (view.feedback.suspicion or 0) > 0 and T.Suspicion or T.Trust
+
+		-- Floating numbers next to the meter they belong to.
+		if animate then
+			local trust = view.feedback.trust or 0
+			local suspicion = view.feedback.suspicion or 0
+			if math.abs(trust) >= 1 then
+				Juice.popup(
+					string.format("%+.0f TRUST", trust),
+					trust > 0 and T.Trust or T.Suspicion,
+					ui.call.meters.trust.track,
+					{ offsetX = 150, size = 24 }
+				)
+			end
+			if math.abs(suspicion) >= 1 then
+				Juice.popup(
+					string.format("%+.0f SUS", suspicion),
+					suspicion > 0 and T.Suspicion or T.Trust,
+					ui.call.meters.suspicion.track,
+					{ offsetX = 150, size = 24, offsetY = 10 }
+				)
+			end
+			if suspicion >= 15 then
+				Juice.shake(ui.call.frame, 10, 0.25)
+				Juice.flash(T.Suspicion, 0.2, 0.35)
+				Juice.play("bad")
+			elseif trust >= 12 then
+				Juice.play("good")
+			end
+		end
 	else
 		ui.call.feedback.Text = ""
+	end
+
+	-- Even with the meters hidden, the caller losing their temper should land.
+	if animate and (view.reaction == "angry" or view.reaction == "accuse") then
+		Juice.shake(ui.call.portrait, 6, 0.3)
 	end
 
 	renderChoices(view)
@@ -299,7 +338,20 @@ local function renderResult(payload)
 		payload.suspicion,
 		payload.perfect and "\nNo choice raised suspicion - perfect run." or ""
 	)
-	ui.result.reward.Text = string.format("+%s Credits", Util.formatNumber(payload.reward))
+	Juice.countUp(ui.result.reward, 0, payload.reward, function(value)
+		return string.format("+%s Credits", Util.formatNumber(value))
+	end, 0.9)
+
+	if success then
+		Juice.confetti(55)
+		Juice.flash(T.Success, 0.22, 0.5)
+		Juice.play("success")
+		Juice.play("cash")
+	else
+		Juice.flash(T.Danger, 0.25, 0.5)
+		Juice.shake(ui.result.frame, 8, 0.3)
+		Juice.play("fail")
+	end
 
 	for index, entry in ipairs(payload.breakdown or {}) do
 		UIKit.label({
@@ -574,6 +626,42 @@ local function renderStore()
 		end)
 	end
 
+	local configured = 0
+	for _, pass in ipairs(state.store.passes) do
+		configured += pass.configured and 1 or 0
+	end
+	for _, product in ipairs(state.store.products) do
+		configured += product.configured and 1 or 0
+	end
+	if configured == 0 then
+		local banner = UIKit.panel({
+			Size = UDim2.new(1, -8, 0, 66),
+			BackgroundColor3 = Color3.fromRGB(62, 48, 20),
+			LayoutOrder = nextOrder(),
+			Parent = ui.store.body,
+		})
+		UIKit.padding(10).Parent = banner
+		UIKit.stroke(T.Gold, 2).Parent = banner
+		UIKit.label({
+			Text = "⚠ Nothing here is set up yet",
+			Font = Enum.Font.GothamBold,
+			TextSize = 15,
+			TextColor3 = T.Gold,
+			Size = UDim2.new(1, 0, 0, 18),
+			Parent = banner,
+		})
+		UIKit.label({
+			Text = "Create each item on the Roblox Creator Dashboard, then paste its id into Products.luau (step 8 of docs/SETUP.md). Expected on a fresh install -- the rest of the game works without it.",
+			TextSize = 12,
+			TextColor3 = T.SubText,
+			TextWrapped = true,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			Position = UDim2.new(0, 0, 0, 20),
+			Size = UDim2.new(1, 0, 0, 34),
+			Parent = banner,
+		})
+	end
+
 	heading("Passes", "Bought once, kept forever.")
 	for _, pass in ipairs(state.store.passes) do
 		card(pass, "pass")
@@ -614,6 +702,24 @@ function renderItemRow()
 			end)
 		end
 	end
+end
+
+-- Escalating labels, because a bare number is not a reason to keep going.
+local STREAK_LABELS = {
+	{ at = 12, text = "CERTIFIED MENACE" },
+	{ at = 8, text = "UNHINGED" },
+	{ at = 5, text = "ON FIRE" },
+	{ at = 3, text = "COOKING" },
+	{ at = 2, text = "WARM" },
+}
+
+local function streakLabel(streak: number): string
+	for _, entry in ipairs(STREAK_LABELS) do
+		if streak >= entry.at then
+			return entry.text
+		end
+	end
+	return "STREAK"
 end
 
 local function formatRate(value: number): string
@@ -1177,6 +1283,12 @@ local function applyData(data)
 	ui.topBar.credits.Text = Util.formatNumber(data.credits) .. " Credits"
 	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and "   (saving disabled this session)" or "")
 
+	local streak = data.stats and data.stats.successStreak or 0
+	ui.topBar.streakPill.Visible = streak >= 2
+	if streak >= 2 then
+		ui.topBar.streakLabel.Text = string.format("🔥 %s x%d", streakLabel(streak), streak)
+	end
+
 	local boostRemaining = data.premium and data.premium.boostRemaining or 0
 	ui.topBar.boost.Visible = boostRemaining > 0
 	if boostRemaining > 0 then
@@ -1241,6 +1353,22 @@ end
 Net.event("DataUpdated").OnClientEvent:Connect(applyData)
 
 Net.event("OperationUpdated").OnClientEvent:Connect(function(view)
+	-- Show what the floor earned since the last push, so idle income is visible
+	-- rather than a number quietly ticking up.
+	local previous = state.operation
+	if previous and view.summary.netIncome > 0 and (view.shutdownRemaining or 0) <= 0 and (view.layLowRemaining or 0) <= 0 then
+		local earned = math.floor(view.summary.netIncome * 5)
+		if earned > 0 then
+			Juice.popup("+" .. Util.formatNumber(earned), T.Gold, ui.operation.hud.panel, {
+				offsetX = 40,
+				offsetY = -10,
+				size = 20,
+				rise = 40,
+				duration = 0.8,
+			})
+		end
+	end
+
 	state.operation = view
 	if ui.operation.frame.Visible then
 		renderOperation()
@@ -1251,10 +1379,32 @@ end)
 
 Net.event("HeatWarning").OnClientEvent:Connect(function(warning)
 	toast(warning.title, warning.body, "warn")
+	Juice.flash(T.Suspicion, 0.18, 0.6)
+	Juice.play("alarm")
 end)
 
 Net.event("RaidAlert").OnClientEvent:Connect(function(outcome)
 	toast(outcome.title, outcome.body, outcome.escaped and "success" or "warn")
+	if outcome.escaped then
+		Juice.confetti(30)
+		Juice.flash(T.Success, 0.25, 0.6)
+	else
+		Juice.flash(T.Danger, 0.45, 0.9)
+		Juice.shake(ui.operation.hud.panel, 12, 0.8)
+		Juice.popup("RAIDED", T.Danger, nil, { size = 54, rise = 40, duration = 1.4 })
+	end
+end)
+
+Net.event("Broadcast").OnClientEvent:Connect(function(payload)
+	local colour = T.Text
+	if payload.kind == "success" then
+		colour = T.Success
+	elseif payload.kind == "warn" then
+		colour = T.Danger
+	elseif payload.kind == "gold" then
+		colour = T.Gold
+	end
+	Juice.ticker(payload.text, colour)
 end)
 
 Net.event("OfflineEarnings").OnClientEvent:Connect(function(payload)
@@ -1308,6 +1458,10 @@ end)
 
 Net.event("RankChanged").OnClientEvent:Connect(function(payload)
 	toast("Promoted to " .. payload.to, "Unlocked: " .. table.concat(payload.perks or {}, ", "), "gold")
+	Juice.confetti(70)
+	Juice.flash(T.Gold, 0.3, 0.8)
+	Juice.popup("PROMOTED", T.Gold, nil, { size = 52, rise = 50, duration = 1.5 })
+	Juice.play("rankUp")
 end)
 
 --------------------------------------------------------------------------------
@@ -1332,6 +1486,8 @@ for _, button in ipairs(ui.call.choiceButtons) do
 		if not index then
 			return
 		end
+		Juice.pulse(button, 0.05)
+		Juice.play("choice")
 		for _, other in ipairs(ui.call.choiceButtons) do
 			other.Visible = false
 		end

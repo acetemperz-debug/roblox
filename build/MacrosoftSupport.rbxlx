@@ -304,7 +304,7 @@ return Achievements
 
 local Config = {}
 
-Config.Version = "1.2.0"
+Config.Version = "1.3.0"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
@@ -384,6 +384,9 @@ Config.Rewards = {
 		FastCall = { mult = 0.20, label = "Quick Talker" },
 		PerfectRun = { mult = 0.50, label = "Flawless Script" },
 		HardNPC = { mult = 0.15, label = "Tough Customer" },
+		-- Consecutive wins. Capped so a streak is a reason to keep playing
+		-- rather than the only thing that matters.
+		Streak = { perCall = 0.08, max = 0.6, label = "Streak" },
 	},
 	-- Consolation credits for a failed call so progression never fully stalls.
 	FailureConsolation = { min = 5, max = 20 },
@@ -1776,6 +1779,7 @@ local EVENTS = {
 	"HeatWarning", -- ({title, body, at})
 	"RaidAlert", -- (outcome)
 	"OfflineEarnings", -- ({amount, seconds, capped})
+	"Broadcast", -- ({text, kind}) to everyone, for the live ticker
 }
 
 local FUNCTIONS = {
@@ -5176,6 +5180,11 @@ function DialogueManager.buildView(situation, callState)
 		end
 	end
 
+	-- Situations are authored best-line-first, which made "always click the top
+	-- one" a winning strategy. The displayed order is shuffled; `index` still
+	-- points at the real choice, so nothing downstream cares.
+	Util.shuffle(choices, random)
+
 	return {
 		situationId = situation.id,
 		prompt = prompt,
@@ -5220,8 +5229,11 @@ EnvironmentBuilder._connection = nil
 
 local THEME = {
 	Floor = Color3.fromRGB(58, 62, 74),
-	Carpet = Color3.fromRGB(46, 52, 68),
-	Wall = Color3.fromRGB(214, 210, 200),
+	Carpet = Color3.fromRGB(42, 47, 64),
+	-- Mid-tone walls. The old near-white ones plus 25 point lights washed the
+	-- whole room out to a flat white.
+	Wall = Color3.fromRGB(78, 84, 104),
+	WallTrim = Color3.fromRGB(52, 57, 74),
 	Desk = Color3.fromRGB(124, 96, 70),
 	DeskLegs = Color3.fromRGB(70, 74, 86),
 	Monitor = Color3.fromRGB(32, 34, 42),
@@ -5477,22 +5489,49 @@ local function buildRoomShell(parent: Instance)
 		})
 	end
 
-	-- Ceiling lights.
+	-- Ceiling lights. Every fixture glows (Neon costs nothing), but only a
+	-- sparse grid of them actually casts light -- 25 overlapping PointLights at
+	-- brightness 1.2 is what blew the room out to white.
 	for x = -50, 50, 25 do
 		for z = -40, 40, 20 do
 			local lightPart = part({
 				Size = Vector3.new(8, 0.3, 4),
 				CFrame = CFrame.new(x, 23.4, z),
-				Color = Color3.fromRGB(255, 252, 235),
+				Color = Color3.fromRGB(226, 240, 255),
 				Material = Enum.Material.Neon,
 				Parent = parent,
 			})
-			local light = Instance.new("PointLight")
-			light.Brightness = 1.2
-			light.Range = 26
-			light.Color = Color3.fromRGB(255, 248, 230)
-			light.Parent = lightPart
+			if (x + 50) % 50 == 0 and (z + 40) % 40 == 0 then
+				local light = Instance.new("PointLight")
+				light.Brightness = 0.55
+				light.Range = 24
+				light.Color = Color3.fromRGB(226, 238, 255)
+				light.Parent = lightPart
+			end
 		end
+	end
+
+	-- Accent strips down the long walls, purely decorative.
+	for _, z in ipairs({ -59, 59 }) do
+		local strip = part({
+			Size = Vector3.new(120, 0.6, 0.3),
+			CFrame = CFrame.new(0, 17, z),
+			Color = THEME.Accent,
+			Material = Enum.Material.Neon,
+			Parent = parent,
+			Name = "AccentStrip",
+		})
+		strip.Transparency = 0.15
+	end
+	for _, x in ipairs({ -69, 69 }) do
+		part({
+			Size = Vector3.new(0.3, 0.6, 110),
+			CFrame = CFrame.new(x, 17, 0),
+			Color = Color3.fromRGB(226, 96, 168),
+			Material = Enum.Material.Neon,
+			Parent = parent,
+			Name = "AccentStrip",
+		})
 	end
 end
 
@@ -5947,9 +5986,44 @@ function EnvironmentBuilder.build()
 
 	root.Parent = Workspace
 
-	Lighting.Ambient = Color3.fromRGB(110, 112, 120)
-	Lighting.OutdoorAmbient = Color3.fromRGB(90, 92, 100)
-	Lighting.Brightness = 1.6
+	-- Tuned deliberately: a dim room with bright neon in it reads far better
+	-- than a bright room, and gives the bloom something to catch.
+	Lighting.Ambient = Color3.fromRGB(58, 60, 74)
+	Lighting.OutdoorAmbient = Color3.fromRGB(62, 64, 80)
+	Lighting.Brightness = 1.0
+	Lighting.ClockTime = 15
+	Lighting.GlobalShadows = true
+	Lighting.FogEnd = 400
+
+	local function ensureEffect(className: string, name: string, props)
+		local existing = Lighting:FindFirstChild(name)
+		if existing then
+			existing:Destroy()
+		end
+		local effect = Instance.new(className)
+		effect.Name = name
+		for key, value in pairs(props) do
+			effect[key] = value
+		end
+		effect.Parent = Lighting
+		return effect
+	end
+
+	ensureEffect("BloomEffect", "MacrosoftBloom", {
+		Intensity = 0.7,
+		Size = 20,
+		Threshold = 1.35,
+	})
+	ensureEffect("ColorCorrectionEffect", "MacrosoftColour", {
+		Saturation = 0.22,
+		Contrast = 0.1,
+		Brightness = 0.01,
+		TintColor = Color3.fromRGB(255, 249, 245),
+	})
+	ensureEffect("SunRaysEffect", "MacrosoftRays", {
+		Intensity = 0.03,
+		Spread = 0.4,
+	})
 
 	-- Animate colleagues.
 	if not EnvironmentBuilder._connection then
@@ -6409,6 +6483,12 @@ if executivePrompt then
 	end)
 end
 
+-- The live ticker. Everyone sees everyone else's big moments, which is most of
+-- what makes a server feel alive.
+local function broadcast(text: string, kind: string?)
+	Net.event("Broadcast"):FireAllClients({ text = text, kind = kind })
+end
+
 --------------------------------------------------------------------------------
 -- Managers
 --------------------------------------------------------------------------------
@@ -6465,6 +6545,10 @@ PlayerDataManager.DataChanged.Event:Connect(function(player, view)
 			to = view.rankName,
 			perks = view.rankPerks,
 		})
+		Net.event("Broadcast"):FireAllClients({
+			text = player.DisplayName .. " got promoted to " .. view.rankName,
+			kind = "gold",
+		})
 	end
 	lastRank[player.UserId] = view.rankIndex
 end)
@@ -6498,6 +6582,11 @@ OperationManager.Raided.Event:Connect(function(player, outcome)
 	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(player))
 	-- Everyone gets to watch the car turn up.
 	EnvironmentBuilder.showRaid(player.DisplayName, outcome.escaped and 12 or Operation.Raid.ShutdownSeconds)
+	broadcast(
+		outcome.escaped and (player.DisplayName .. " just talked their way out of a raid")
+			or (player.DisplayName .. "'s floor just got raided"),
+		outcome.escaped and "success" or "warn"
+	)
 	AchievementManager.evaluate(player, nil)
 end)
 
@@ -6525,10 +6614,33 @@ UpgradeManager.Purchased.Event:Connect(function(player, def)
 	})
 end)
 
-CallManager.CallFinished.Event:Connect(function(player)
+CallManager.CallFinished.Event:Connect(function(player, result, reward)
 	LeaderboardManager.publish(player)
 	-- Career-total achievements that do not depend on the call itself.
 	AchievementManager.evaluate(player, nil)
+
+	local data = PlayerDataManager.get(player)
+	local streak = data and data.stats.successStreak or 0
+	if result.outcome == "success" then
+		broadcast(string.format(
+			"%s talked %s (%d) into %s Credits",
+			player.DisplayName,
+			result.npc.firstName,
+			result.npc.age,
+			tostring(reward)
+		), "success")
+		if streak >= 3 then
+			broadcast(string.format("%s is on a %d call streak", player.DisplayName, streak), "gold")
+		end
+	elseif result.npc.personalityId == "police_desk" then
+		broadcast(player.DisplayName .. " just cold-called a police station", "warn")
+	elseif result.outcome == "exposed" and result.stage and result.stage >= 6 then
+		broadcast(string.format(
+			"%s got rumbled by %s at the last hurdle",
+			player.DisplayName,
+			result.npc.firstName
+		), "warn")
+	end
 end)
 
 --------------------------------------------------------------------------------
@@ -8037,6 +8149,8 @@ local function defaultProfile()
 			highestDifficultyOrder = 0,
 			failStreak = 0,
 			bestStreak = 0,
+			successStreak = 0,
+			bestSuccessStreak = 0,
 			timesOnHold = 0,
 			totalCallSeconds = 0,
 			bestSingleReward = 0,
@@ -8285,6 +8399,10 @@ function PlayerDataManager.recordCall(player: Player, result)
 	if result.outcome == "success" then
 		stats.successfulCalls += 1
 		stats.failStreak = 0
+		stats.successStreak += 1
+		if stats.successStreak > stats.bestSuccessStreak then
+			stats.bestSuccessStreak = stats.successStreak
+		end
 		if result.difficulty then
 			stats.successByDifficulty[result.difficulty] = (stats.successByDifficulty[result.difficulty] or 0) + 1
 		end
@@ -8294,6 +8412,7 @@ function PlayerDataManager.recordCall(player: Player, result)
 		end
 	else
 		stats.failedCalls += 1
+		stats.successStreak = 0
 		stats.failStreak += 1
 		if stats.failStreak > stats.bestStreak then
 			stats.bestStreak = stats.failStreak
@@ -8603,6 +8722,9 @@ function RandomEventManager.buildView(event, callState)
 			lockReason = locked and ("Unlocks at dialogue level " .. tostring(choice.minLevel)) or nil,
 		})
 	end
+	-- Same reason as DialogueManager: never let position give the answer away.
+	Util.shuffle(choices, random)
+
 	return {
 		situationId = event.id,
 		isEvent = true,
@@ -8683,6 +8805,17 @@ function RewardManager.calculate(player: Player, result)
 	if result.npc.tier == "Hard" or result.npc.tier == "Expert" or result.npc.tier == "Nightmare" then
 		bonusMult += b.HardNPC.mult
 		table.insert(breakdown, { label = b.HardNPC.label, amount = math.floor(base * b.HardNPC.mult) })
+	end
+
+	-- The streak counts the calls before this one, so a first win pays no bonus.
+	local streak = data and data.stats.successStreak or 0
+	if streak > 0 then
+		local streakMult = math.min(b.Streak.max, streak * b.Streak.perCall)
+		bonusMult += streakMult
+		table.insert(breakdown, {
+			label = string.format("%s x%d", b.Streak.label, streak + 1),
+			amount = math.floor(base * streakMult),
+		})
 	end
 
 	total = base * (1 + bonusMult)
@@ -8908,7 +9041,8 @@ function Interface.build(): any
 	local gui = UIKit.new("ScreenGui", {
 		Name = "MacrosoftUI",
 		ResetOnSpawn = false,
-		IgnoreGuiInset = true,
+		-- false, so Roblox's own top bar does not sit on top of ours.
+		IgnoreGuiInset = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		DisplayOrder = 10,
 		Parent = playerGui,
@@ -8928,23 +9062,23 @@ function Interface.build(): any
 	UIKit.stroke(T.PanelLight, 1).Parent = topBar
 
 	local brand = UIKit.label({
-		Text = "MACROSOFT SUPPORT",
-		Font = Enum.Font.GothamBold,
-		TextSize = 17,
+		Text = "MACROSOFT",
+		Font = UIKit.HeadlineFont,
+		TextSize = 20,
 		TextColor3 = T.Accent,
 		Position = UDim2.new(0, 16, 0, 0),
-		Size = UDim2.new(0, 230, 1, 0),
+		Size = UDim2.new(0, 220, 1, 0),
 		Parent = topBar,
 	})
 
 	local creditsLabel = UIKit.label({
 		Name = "Credits",
 		Text = "0 Credits",
-		Font = Enum.Font.GothamBold,
-		TextSize = 16,
+		Font = UIKit.HeadlineFont,
+		TextSize = 18,
 		TextColor3 = T.Gold,
-		Position = UDim2.new(0, 250, 0, 0),
-		Size = UDim2.new(0, 220, 1, 0),
+		Position = UDim2.new(0, 390, 0, 0),
+		Size = UDim2.new(0, 200, 1, 0),
 		Parent = topBar,
 	})
 
@@ -8953,8 +9087,8 @@ function Interface.build(): any
 		Text = "Intern",
 		TextSize = 15,
 		TextColor3 = T.SubText,
-		Position = UDim2.new(0, 470, 0, 8),
-		Size = UDim2.new(0, 260, 0, 20),
+		Position = UDim2.new(0, 592, 0, 8),
+		Size = UDim2.new(0, 230, 0, 20),
 		Parent = topBar,
 	})
 
@@ -8964,10 +9098,29 @@ function Interface.build(): any
 		Font = Enum.Font.GothamBold,
 		TextSize = 14,
 		TextColor3 = T.Gold,
-		Position = UDim2.new(0, 470, 0, 26),
-		Size = UDim2.new(0, 260, 0, 18),
+		Position = UDim2.new(0, 592, 0, 26),
+		Size = UDim2.new(0, 230, 0, 18),
 		Visible = false,
 		Parent = topBar,
+	})
+
+	local streakPill = UIKit.panel({
+		Name = "Streak",
+		Position = UDim2.new(0, 246, 0.5, -15),
+		Size = UDim2.new(0, 132, 0, 30),
+		BackgroundColor3 = Color3.fromRGB(255, 126, 64),
+		Visible = false,
+		Parent = topBar,
+	})
+	local streakLabel = UIKit.label({
+		Name = "Text",
+		Text = "",
+		Font = UIKit.HeadlineFont,
+		TextSize = 15,
+		TextColor3 = Color3.fromRGB(28, 18, 10),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		Parent = streakPill,
 	})
 
 	local buttonRow = UIKit.new("Frame", {
@@ -9054,13 +9207,42 @@ function Interface.build(): any
 
 	local startButton = UIKit.button({
 		Name = "StartCall",
-		Text = "START CALL",
-		Font = Enum.Font.GothamBold,
-		TextSize = 20,
+		Text = "📞  START CALL",
+		Font = UIKit.HeadlineFont,
+		TextSize = 24,
 		BackgroundColor3 = T.Accent,
-		Position = UDim2.new(0, 0, 1, -48),
-		Size = UDim2.new(1, 0, 0, 44),
+		Position = UDim2.new(0, 0, 1, -52),
+		Size = UDim2.new(1, 0, 0, 50),
 		Parent = home,
+	})
+	UIKit.gradient(Color3.fromRGB(122, 168, 255), Color3.fromRGB(58, 104, 226)).Parent = startButton
+	UIKit.stroke(Color3.fromRGB(170, 205, 255), 2, 0.3).Parent = startButton
+
+	----------------------------------------------------------------------------
+	-- Live ticker: what everyone else in the server is doing.
+	----------------------------------------------------------------------------
+	local tickerFrame = UIKit.panel({
+		Name = "Ticker",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 74),
+		Size = UDim2.new(0, 560, 0, 34),
+		BackgroundColor3 = Color3.fromRGB(16, 18, 26),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 5,
+		Parent = gui,
+	})
+	UIKit.stroke(T.Accent, 2, 0.4).Parent = tickerFrame
+	local tickerLabel = UIKit.label({
+		Name = "Text",
+		Text = "",
+		Font = UIKit.HeadlineFont,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 6,
+		Parent = tickerFrame,
 	})
 
 	----------------------------------------------------------------------------
@@ -9070,7 +9252,7 @@ function Interface.build(): any
 		Name = "OpsHud",
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, 16, 1, -24),
-		Size = UDim2.new(0, 300, 0, 172),
+		Size = UDim2.new(0, 300, 0, 206),
 		BackgroundTransparency = 0.05,
 		Parent = gui,
 	})
@@ -9187,10 +9369,22 @@ function Interface.build(): any
 	local initials = UIKit.label({
 		Name = "Initials",
 		Text = "??",
-		Font = Enum.Font.GothamBold,
-		TextSize = 36,
+		Font = UIKit.HeadlineFont,
+		TextSize = 34,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Size = UDim2.fromScale(1, 1),
+		Parent = portrait,
+	})
+
+	local face = UIKit.label({
+		Name = "Face",
+		Text = "🙂",
+		TextSize = 34,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 1, -18),
+		Size = UDim2.fromOffset(52, 44),
+		ZIndex = 3,
 		Parent = portrait,
 	})
 
@@ -9413,8 +9607,8 @@ function Interface.build(): any
 	local resultOutcome = UIKit.label({
 		Name = "Outcome",
 		Text = "",
-		Font = Enum.Font.GothamBold,
-		TextSize = 24,
+		Font = UIKit.HeadlineFont,
+		TextSize = 32,
 		Size = UDim2.new(1, 0, 0, 30),
 		LayoutOrder = 1,
 		Parent = result.body,
@@ -9441,10 +9635,10 @@ function Interface.build(): any
 	local resultReward = UIKit.label({
 		Name = "Reward",
 		Text = "",
-		Font = Enum.Font.GothamBold,
-		TextSize = 22,
+		Font = UIKit.HeadlineFont,
+		TextSize = 34,
 		TextColor3 = T.Gold,
-		Size = UDim2.new(1, 0, 0, 30),
+		Size = UDim2.new(1, 0, 0, 44),
 		LayoutOrder = 4,
 		Parent = result.body,
 	})
@@ -9583,7 +9777,10 @@ function Interface.build(): any
 			statsButton = statsButton,
 			helpButton = helpButton,
 			brand = brand,
+			streakPill = streakPill,
+			streakLabel = streakLabel,
 		},
+		ticker = { frame = tickerFrame, label = tickerLabel },
 		home = {
 			frame = home,
 			difficultyRow = difficultyRow,
@@ -9594,6 +9791,7 @@ function Interface.build(): any
 			frame = call,
 			portrait = portrait,
 			initials = initials,
+			face = face,
 			name = callerName,
 			sub = callerSub,
 			backstory = callerBackstory,
@@ -9650,7 +9848,348 @@ return Interface
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="LocalScript" referent="RBX37">
+			<Item class="ModuleScript" referent="RBX37">
+				<Properties>
+					<string name="Name">Juice</string>
+					<ProtectedString name="Source"><![CDATA[--!nonstrict
+-- Juice
+-- Feedback effects: floating numbers, screen flashes, shakes, confetti, a
+-- count-up and the server-wide ticker. None of it changes what happens in the
+-- game; all of it changes how it feels to play.
+--
+-- Sounds are wired but silent: drop asset ids into Juice.Sounds and they start
+-- playing. Nothing here references an asset id it cannot verify.
+
+local SoundService = game:GetService("SoundService")
+
+local UIKit = require(script.Parent.UIKit)
+
+local Juice = {}
+local T = UIKit.Theme
+
+-- Fill these in with your own asset ids ("rbxassetid://123") to add audio.
+Juice.Sounds = {
+	choice = "",
+	good = "",
+	bad = "",
+	success = "",
+	fail = "",
+	cash = "",
+	rankUp = "",
+	alarm = "",
+}
+
+local layers = {
+	popups = nil,
+	flash = nil,
+	confetti = nil,
+	ticker = nil,
+}
+
+local soundCache = {}
+
+function Juice.play(name: string, volume: number?)
+	local id = Juice.Sounds[name]
+	if not id or id == "" then
+		return
+	end
+	local sound = soundCache[name]
+	if not sound then
+		sound = Instance.new("Sound")
+		sound.Name = "Juice_" .. name
+		sound.SoundId = id
+		sound.Parent = SoundService
+		soundCache[name] = sound
+	end
+	sound.Volume = volume or 0.5
+	sound:Play()
+end
+
+function Juice.init(gui: ScreenGui)
+	layers.popups = UIKit.new("Frame", {
+		Name = "JuicePopups",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 50,
+		Active = false,
+		Parent = gui,
+	})
+
+	layers.confetti = UIKit.new("Frame", {
+		Name = "JuiceConfetti",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 49,
+		Active = false,
+		Parent = gui,
+	})
+
+	layers.flash = UIKit.new("Frame", {
+		Name = "JuiceFlash",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 48,
+		Active = false,
+		Parent = gui,
+	})
+	return layers
+end
+
+--------------------------------------------------------------------------------
+-- Floating numbers
+--------------------------------------------------------------------------------
+
+-- anchor: a GuiObject to appear next to, or nil for the centre of the screen.
+function Juice.popup(text: string, colour: Color3, anchor: GuiObject?, options)
+	if not layers.popups then
+		return
+	end
+	options = options or {}
+
+	local x, y
+	if anchor and anchor.AbsoluteSize.X > 0 then
+		x = anchor.AbsolutePosition.X + anchor.AbsoluteSize.X / 2
+		y = anchor.AbsolutePosition.Y
+	else
+		x = layers.popups.AbsoluteSize.X / 2
+		y = layers.popups.AbsoluteSize.Y * 0.4
+	end
+	x += (options.offsetX or 0)
+	y += (options.offsetY or 0)
+
+	local label = UIKit.label({
+		Text = text,
+		Font = Enum.Font.FredokaOne,
+		TextSize = options.size or 28,
+		TextColor3 = colour,
+		TextStrokeTransparency = 0.2,
+		TextStrokeColor3 = Color3.fromRGB(12, 12, 18),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(x, y),
+		Size = UDim2.fromOffset(260, 40),
+		ZIndex = 51,
+		Parent = layers.popups,
+	})
+
+	-- Small random drift so a burst of popups does not stack into one blob.
+	local drift = math.random(-26, 26)
+	local rise = options.rise or 70
+	UIKit.tween(label, {
+		Position = UDim2.fromOffset(x + drift, y - rise),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	}, options.duration or 0.9, Enum.EasingStyle.Quad)
+
+	-- A quick punch on the way in.
+	label.TextSize = (options.size or 28) * 1.6
+	UIKit.tween(label, { TextSize = options.size or 28 }, 0.18, Enum.EasingStyle.Back)
+
+	task.delay((options.duration or 0.9) + 0.1, function()
+		label:Destroy()
+	end)
+	return label
+end
+
+--------------------------------------------------------------------------------
+-- Screen effects
+--------------------------------------------------------------------------------
+
+function Juice.flash(colour: Color3, strength: number?, duration: number?)
+	if not layers.flash then
+		return
+	end
+	layers.flash.BackgroundColor3 = colour
+	layers.flash.BackgroundTransparency = 1 - (strength or 0.35)
+	UIKit.tween(layers.flash, { BackgroundTransparency = 1 }, duration or 0.45)
+end
+
+-- Shakes a GuiObject around wherever it currently sits.
+function Juice.shake(object: GuiObject, intensity: number?, duration: number?)
+	if not object then
+		return
+	end
+	local home = object:GetAttribute("JuiceHome")
+	if not home then
+		object:SetAttribute("JuiceHome", true)
+	end
+	local base = object.Position
+	local power = intensity or 8
+	local finish = os.clock() + (duration or 0.3)
+
+	task.spawn(function()
+		while os.clock() < finish do
+			object.Position = base + UDim2.fromOffset(math.random(-power, power), math.random(-power, power))
+			task.wait(0.03)
+		end
+		object.Position = base
+	end)
+end
+
+function Juice.pulse(object: GuiObject, amount: number?)
+	if not object then
+		return
+	end
+	local base = object.Size
+	local grow = amount or 0.06
+	local target = UDim2.new(
+		base.X.Scale * (1 + grow),
+		base.X.Offset * (1 + grow),
+		base.Y.Scale * (1 + grow),
+		base.Y.Offset * (1 + grow)
+	)
+	UIKit.tween(object, { Size = target }, 0.09, Enum.EasingStyle.Quad)
+	task.delay(0.1, function()
+		UIKit.tween(object, { Size = base }, 0.14, Enum.EasingStyle.Back)
+	end)
+end
+
+function Juice.confetti(count: number?)
+	if not layers.confetti then
+		return
+	end
+	local colours = {
+		Color3.fromRGB(255, 92, 132),
+		Color3.fromRGB(96, 220, 255),
+		Color3.fromRGB(255, 214, 92),
+		Color3.fromRGB(140, 255, 160),
+		Color3.fromRGB(196, 140, 255),
+	}
+	local width = math.max(1, layers.confetti.AbsoluteSize.X)
+
+	for _ = 1, (count or 40) do
+		local piece = UIKit.new("Frame", {
+			Size = UDim2.fromOffset(math.random(6, 14), math.random(8, 18)),
+			Position = UDim2.fromOffset(math.random(0, width), math.random(-120, -20)),
+			BackgroundColor3 = colours[math.random(1, #colours)],
+			BorderSizePixel = 0,
+			Rotation = math.random(0, 360),
+			ZIndex = 49,
+			Parent = layers.confetti,
+		})
+		UIKit.corner(3).Parent = piece
+
+		local fall = math.random(12, 22) / 10
+		UIKit.tween(piece, {
+			Position = piece.Position + UDim2.fromOffset(math.random(-160, 160), layers.confetti.AbsoluteSize.Y + 200),
+			Rotation = piece.Rotation + math.random(-540, 540),
+			BackgroundTransparency = 1,
+		}, fall, Enum.EasingStyle.Linear)
+
+		task.delay(fall + 0.1, function()
+			piece:Destroy()
+		end)
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Count-up, for reward numbers
+--------------------------------------------------------------------------------
+
+local countTokens = {}
+
+function Juice.countUp(label: TextLabel, from: number, to: number, format, duration: number?)
+	countTokens[label] = (countTokens[label] or 0) + 1
+	local token = countTokens[label]
+	local time = duration or 0.8
+
+	task.spawn(function()
+		local start = os.clock()
+		while true do
+			if countTokens[label] ~= token or not label.Parent then
+				return
+			end
+			local alpha = math.min(1, (os.clock() - start) / time)
+			-- Ease out, so it races up then settles.
+			local eased = 1 - (1 - alpha) ^ 3
+			label.Text = format(math.floor(from + (to - from) * eased))
+			if alpha >= 1 then
+				return
+			end
+			task.wait(0.03)
+		end
+	end)
+end
+
+--------------------------------------------------------------------------------
+-- Ticker: one line at a time, showing what everyone else is up to.
+--------------------------------------------------------------------------------
+
+local tickerQueue = {}
+local tickerBusy = false
+
+function Juice.attachTicker(frame: Frame, label: TextLabel)
+	layers.ticker = { frame = frame, label = label }
+end
+
+local function runTicker()
+	if tickerBusy or not layers.ticker then
+		return
+	end
+	local entry = table.remove(tickerQueue, 1)
+	if not entry then
+		return
+	end
+	tickerBusy = true
+
+	local frame = layers.ticker.frame
+	local label = layers.ticker.label
+	label.Text = entry.text
+	label.TextColor3 = entry.colour or T.Text
+
+	frame.Visible = true
+	frame.BackgroundTransparency = 1
+	label.TextTransparency = 1
+	UIKit.tween(frame, { BackgroundTransparency = 0.15 }, 0.2)
+	UIKit.tween(label, { TextTransparency = 0 }, 0.2)
+
+	task.delay(entry.hold or 3.4, function()
+		UIKit.tween(frame, { BackgroundTransparency = 1 }, 0.3)
+		UIKit.tween(label, { TextTransparency = 1 }, 0.3)
+		task.delay(0.35, function()
+			frame.Visible = #tickerQueue > 0
+			tickerBusy = false
+			runTicker()
+		end)
+	end)
+end
+
+function Juice.ticker(text: string, colour: Color3?, hold: number?)
+	table.insert(tickerQueue, { text = text, colour = colour, hold = hold })
+	-- Never let a burst of events build an unbounded backlog.
+	while #tickerQueue > 6 do
+		table.remove(tickerQueue, 1)
+	end
+	runTicker()
+end
+
+--------------------------------------------------------------------------------
+
+-- Mood faces for the caller portrait. Reaction category -> face.
+Juice.Faces = {
+	greet = "🙂",
+	believe = "😊",
+	question = "🤨",
+	nervous = "😰",
+	angry = "😡",
+	laugh = "😂",
+	accuse = "🤬",
+	pretend = "😏",
+	waste = "🥱",
+	hangup = "📵",
+}
+
+function Juice.face(reaction: string?): string
+	return Juice.Faces[reaction or "greet"] or "🙂"
+end
+
+return Juice
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="LocalScript" referent="RBX38">
 				<Properties>
 					<string name="Name">MacrosoftClient</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -9665,10 +10204,13 @@ local Net = require(Shared.Net)
 
 local UIKit = require(script.Parent.UIKit)
 local Interface = require(script.Parent.Interface)
+local Juice = require(script.Parent.Juice)
 
 local T = UIKit.Theme
 
 local ui = Interface.build()
+Juice.init(ui.gui)
+Juice.attachTicker(ui.ticker.frame, ui.ticker.label)
 
 local state = {
 	data = nil,
@@ -9890,6 +10432,8 @@ local function renderCall(view, animate: boolean)
 
 	ui.call.prompt.Text = view.prompt or ""
 
+	ui.call.face.Text = Juice.face(view.reaction)
+
 	if view.feedback then
 		local parts = {}
 		if view.feedback.trust then
@@ -9900,8 +10444,42 @@ local function renderCall(view, animate: boolean)
 		end
 		ui.call.feedback.Text = table.concat(parts, "   ")
 		ui.call.feedback.TextColor3 = (view.feedback.suspicion or 0) > 0 and T.Suspicion or T.Trust
+
+		-- Floating numbers next to the meter they belong to.
+		if animate then
+			local trust = view.feedback.trust or 0
+			local suspicion = view.feedback.suspicion or 0
+			if math.abs(trust) >= 1 then
+				Juice.popup(
+					string.format("%+.0f TRUST", trust),
+					trust > 0 and T.Trust or T.Suspicion,
+					ui.call.meters.trust.track,
+					{ offsetX = 150, size = 24 }
+				)
+			end
+			if math.abs(suspicion) >= 1 then
+				Juice.popup(
+					string.format("%+.0f SUS", suspicion),
+					suspicion > 0 and T.Suspicion or T.Trust,
+					ui.call.meters.suspicion.track,
+					{ offsetX = 150, size = 24, offsetY = 10 }
+				)
+			end
+			if suspicion >= 15 then
+				Juice.shake(ui.call.frame, 10, 0.25)
+				Juice.flash(T.Suspicion, 0.2, 0.35)
+				Juice.play("bad")
+			elseif trust >= 12 then
+				Juice.play("good")
+			end
+		end
 	else
 		ui.call.feedback.Text = ""
+	end
+
+	-- Even with the meters hidden, the caller losing their temper should land.
+	if animate and (view.reaction == "angry" or view.reaction == "accuse") then
+		Juice.shake(ui.call.portrait, 6, 0.3)
 	end
 
 	renderChoices(view)
@@ -9954,7 +10532,20 @@ local function renderResult(payload)
 		payload.suspicion,
 		payload.perfect and "\nNo choice raised suspicion - perfect run." or ""
 	)
-	ui.result.reward.Text = string.format("+%s Credits", Util.formatNumber(payload.reward))
+	Juice.countUp(ui.result.reward, 0, payload.reward, function(value)
+		return string.format("+%s Credits", Util.formatNumber(value))
+	end, 0.9)
+
+	if success then
+		Juice.confetti(55)
+		Juice.flash(T.Success, 0.22, 0.5)
+		Juice.play("success")
+		Juice.play("cash")
+	else
+		Juice.flash(T.Danger, 0.25, 0.5)
+		Juice.shake(ui.result.frame, 8, 0.3)
+		Juice.play("fail")
+	end
 
 	for index, entry in ipairs(payload.breakdown or {}) do
 		UIKit.label({
@@ -10229,6 +10820,42 @@ local function renderStore()
 		end)
 	end
 
+	local configured = 0
+	for _, pass in ipairs(state.store.passes) do
+		configured += pass.configured and 1 or 0
+	end
+	for _, product in ipairs(state.store.products) do
+		configured += product.configured and 1 or 0
+	end
+	if configured == 0 then
+		local banner = UIKit.panel({
+			Size = UDim2.new(1, -8, 0, 66),
+			BackgroundColor3 = Color3.fromRGB(62, 48, 20),
+			LayoutOrder = nextOrder(),
+			Parent = ui.store.body,
+		})
+		UIKit.padding(10).Parent = banner
+		UIKit.stroke(T.Gold, 2).Parent = banner
+		UIKit.label({
+			Text = "⚠ Nothing here is set up yet",
+			Font = Enum.Font.GothamBold,
+			TextSize = 15,
+			TextColor3 = T.Gold,
+			Size = UDim2.new(1, 0, 0, 18),
+			Parent = banner,
+		})
+		UIKit.label({
+			Text = "Create each item on the Roblox Creator Dashboard, then paste its id into Products.luau (step 8 of docs/SETUP.md). Expected on a fresh install -- the rest of the game works without it.",
+			TextSize = 12,
+			TextColor3 = T.SubText,
+			TextWrapped = true,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			Position = UDim2.new(0, 0, 0, 20),
+			Size = UDim2.new(1, 0, 0, 34),
+			Parent = banner,
+		})
+	end
+
 	heading("Passes", "Bought once, kept forever.")
 	for _, pass in ipairs(state.store.passes) do
 		card(pass, "pass")
@@ -10269,6 +10896,24 @@ function renderItemRow()
 			end)
 		end
 	end
+end
+
+-- Escalating labels, because a bare number is not a reason to keep going.
+local STREAK_LABELS = {
+	{ at = 12, text = "CERTIFIED MENACE" },
+	{ at = 8, text = "UNHINGED" },
+	{ at = 5, text = "ON FIRE" },
+	{ at = 3, text = "COOKING" },
+	{ at = 2, text = "WARM" },
+}
+
+local function streakLabel(streak: number): string
+	for _, entry in ipairs(STREAK_LABELS) do
+		if streak >= entry.at then
+			return entry.text
+		end
+	end
+	return "STREAK"
 end
 
 local function formatRate(value: number): string
@@ -10832,6 +11477,12 @@ local function applyData(data)
 	ui.topBar.credits.Text = Util.formatNumber(data.credits) .. " Credits"
 	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and "   (saving disabled this session)" or "")
 
+	local streak = data.stats and data.stats.successStreak or 0
+	ui.topBar.streakPill.Visible = streak >= 2
+	if streak >= 2 then
+		ui.topBar.streakLabel.Text = string.format("🔥 %s x%d", streakLabel(streak), streak)
+	end
+
 	local boostRemaining = data.premium and data.premium.boostRemaining or 0
 	ui.topBar.boost.Visible = boostRemaining > 0
 	if boostRemaining > 0 then
@@ -10896,6 +11547,22 @@ end
 Net.event("DataUpdated").OnClientEvent:Connect(applyData)
 
 Net.event("OperationUpdated").OnClientEvent:Connect(function(view)
+	-- Show what the floor earned since the last push, so idle income is visible
+	-- rather than a number quietly ticking up.
+	local previous = state.operation
+	if previous and view.summary.netIncome > 0 and (view.shutdownRemaining or 0) <= 0 and (view.layLowRemaining or 0) <= 0 then
+		local earned = math.floor(view.summary.netIncome * 5)
+		if earned > 0 then
+			Juice.popup("+" .. Util.formatNumber(earned), T.Gold, ui.operation.hud.panel, {
+				offsetX = 40,
+				offsetY = -10,
+				size = 20,
+				rise = 40,
+				duration = 0.8,
+			})
+		end
+	end
+
 	state.operation = view
 	if ui.operation.frame.Visible then
 		renderOperation()
@@ -10906,10 +11573,32 @@ end)
 
 Net.event("HeatWarning").OnClientEvent:Connect(function(warning)
 	toast(warning.title, warning.body, "warn")
+	Juice.flash(T.Suspicion, 0.18, 0.6)
+	Juice.play("alarm")
 end)
 
 Net.event("RaidAlert").OnClientEvent:Connect(function(outcome)
 	toast(outcome.title, outcome.body, outcome.escaped and "success" or "warn")
+	if outcome.escaped then
+		Juice.confetti(30)
+		Juice.flash(T.Success, 0.25, 0.6)
+	else
+		Juice.flash(T.Danger, 0.45, 0.9)
+		Juice.shake(ui.operation.hud.panel, 12, 0.8)
+		Juice.popup("RAIDED", T.Danger, nil, { size = 54, rise = 40, duration = 1.4 })
+	end
+end)
+
+Net.event("Broadcast").OnClientEvent:Connect(function(payload)
+	local colour = T.Text
+	if payload.kind == "success" then
+		colour = T.Success
+	elseif payload.kind == "warn" then
+		colour = T.Danger
+	elseif payload.kind == "gold" then
+		colour = T.Gold
+	end
+	Juice.ticker(payload.text, colour)
 end)
 
 Net.event("OfflineEarnings").OnClientEvent:Connect(function(payload)
@@ -10963,6 +11652,10 @@ end)
 
 Net.event("RankChanged").OnClientEvent:Connect(function(payload)
 	toast("Promoted to " .. payload.to, "Unlocked: " .. table.concat(payload.perks or {}, ", "), "gold")
+	Juice.confetti(70)
+	Juice.flash(T.Gold, 0.3, 0.8)
+	Juice.popup("PROMOTED", T.Gold, nil, { size = 52, rise = 50, duration = 1.5 })
+	Juice.play("rankUp")
 end)
 
 --------------------------------------------------------------------------------
@@ -10987,6 +11680,8 @@ for _, button in ipairs(ui.call.choiceButtons) do
 		if not index then
 			return
 		end
+		Juice.pulse(button, 0.05)
+		Juice.play("choice")
 		for _, other in ipairs(ui.call.choiceButtons) do
 			other.Visible = false
 		end
@@ -11129,7 +11824,7 @@ end)
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX38">
+			<Item class="ModuleScript" referent="RBX39">
 				<Properties>
 					<string name="Name">UIKit</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -11176,6 +11871,17 @@ function UIKit.stroke(colour: Color3, thickness: number?, transparency: number?)
 	})
 end
 
+function UIKit.gradient(top: Color3, bottom: Color3, rotation: number?)
+	return UIKit.new("UIGradient", {
+		Color = ColorSequence.new(top, bottom),
+		Rotation = rotation or 90,
+	})
+end
+
+-- Chunky headline text. Used for anything that should read as a game rather
+-- than a spreadsheet.
+UIKit.HeadlineFont = Enum.Font.FredokaOne
+
 function UIKit.padding(all: number, extra)
 	extra = extra or {}
 	return UIKit.new("UIPadding", {
@@ -11202,7 +11908,7 @@ function UIKit.panel(props, children)
 		merged[key] = value
 	end
 	local frame = UIKit.new("Frame", merged, children)
-	UIKit.corner(10).Parent = frame
+	UIKit.corner(props and props.CornerRadius or 14).Parent = frame
 	return frame
 end
 
@@ -11235,7 +11941,7 @@ function UIKit.button(props)
 		merged[key] = value
 	end
 	local button = UIKit.new("TextButton", merged)
-	UIKit.corner(8).Parent = button
+	UIKit.corner(12).Parent = button
 
 	-- Hover reads the colour at hover time rather than at creation time, so a
 	-- button that is later restyled (a selected difficulty, an owned upgrade)

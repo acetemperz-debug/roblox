@@ -155,12 +155,12 @@ This script calls `Net.init()`, which creates
 **Test it.** Press Play. The Output window should show:
 
 ```
-[Macrosoft] v1.2.0 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
+[Macrosoft] v1.3.0 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
 [Macrosoft] Robux store: 0 of 14 items have an asset id set. Items without one show as unavailable.
 ```
 
 The second line is expected until you do step 7. Check that
-`ReplicatedStorage/MacrosoftRemotes` exists with 25 children, and
+`ReplicatedStorage/MacrosoftRemotes` exists with 26 children, and
 that your player has a `leaderstats` folder with `Credits` and `Rank`. Walk to
 the front-left desk and the "Start Call" prompt should appear (pressing it does
 nothing visible yet — the interface is step 5).
@@ -169,7 +169,7 @@ nothing visible yet — the interface is step 5).
 
 ## Step 5 — Client
 
-**Type:** two ModuleScripts and one LocalScript
+**Type:** three ModuleScripts and one LocalScript
 **Location:** `StarterPlayer/StarterPlayerScripts` — all three directly inside
 it, as siblings.
 
@@ -177,6 +177,7 @@ it, as siblings.
 | --- | --- | --- |
 | `UIKit` | ModuleScript | `src/client/UIKit.luau` |
 | `Interface` | ModuleScript | `src/client/Interface.luau` |
+| `Juice` | ModuleScript | `src/client/Juice.luau` |
 | `MacrosoftClient` | **LocalScript** | `src/client/MacrosoftClient.client.luau` |
 
 **Test it.** Press Play. You should see:

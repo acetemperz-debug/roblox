@@ -44,6 +44,7 @@ and used on a real person. Do not do any of this to anybody.
 | MacrosoftServer | `src/server/MacrosoftServer.server.luau` | Server entry point |
 | UIKit / Interface | `src/client/UIKit.luau`, `src/client/Interface.luau` | Builds the whole GUI in code |
 | MacrosoftClient | `src/client/MacrosoftClient.client.luau` | Client entry point |
+| Juice | `src/client/Juice.luau` | Floating numbers, flashes, shakes, confetti, the live ticker |
 
 No parts, GUIs or RemoteEvents have to be created by hand. The world and the
 interface are both generated at runtime.

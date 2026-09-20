@@ -92,6 +92,7 @@ local CallManager = require(serverFolder.CallManager)
 local NPCGenerator = require(serverFolder.NPCGenerator)
 local LeaderboardManager = require(serverFolder.LeaderboardManager)
 local OperationManager = require(serverFolder.OperationManager)
+local RewardManager = require(serverFolder.RewardManager)
 local HeatManager = require(serverFolder.HeatManager)
 
 --------------------------------------------------------------------------------
@@ -464,6 +465,47 @@ end
 check("every winnable personality wins sometimes", #unwinnable == 0, #unwinnable > 0 and table.concat(unwinnable, ", ") or "none stuck at 0%")
 
 --------------------------------------------------------------------------------
+-- Presentation: the answer must not be guessable from position
+--------------------------------------------------------------------------------
+
+print("")
+print("Choice presentation")
+
+local sampleSituation = DialogueLibrary.ById.intro_why_calling
+local firstSeen = {}
+local distinctFirst = 0
+local sampleRuns = 400
+for _ = 1, sampleRuns do
+	local view = DialogueManager.buildView(sampleSituation, { dialogueLevel = 5 })
+	local top = view.choices[1].index
+	if not firstSeen[top] then
+		distinctFirst += 1
+	end
+	firstSeen[top] = (firstSeen[top] or 0) + 1
+end
+check("every choice can appear first", distinctFirst == #sampleSituation.choices,
+	distinctFirst .. " of " .. #sampleSituation.choices .. " ever led")
+check("the authored best line is not always on top", (firstSeen[1] or 0) < sampleRuns * 0.45,
+	string.format("led %.0f%% of the time", (firstSeen[1] or 0) / sampleRuns * 100))
+
+-- Shuffling must not drop, duplicate or renumber anything.
+local integrityOk = true
+for _ = 1, 100 do
+	local view = DialogueManager.buildView(sampleSituation, { dialogueLevel = 5 })
+	if #view.choices ~= #sampleSituation.choices then
+		integrityOk = false
+	end
+	local seenIndex = {}
+	for _, choice in ipairs(view.choices) do
+		if seenIndex[choice.index] or sampleSituation.choices[choice.index].text ~= choice.text then
+			integrityOk = false
+		end
+		seenIndex[choice.index] = true
+	end
+end
+check("shuffling keeps every choice exactly once, pointing at the right line", integrityOk)
+
+--------------------------------------------------------------------------------
 -- Tycoon layer: economy, heat and raids
 --------------------------------------------------------------------------------
 
@@ -767,6 +809,38 @@ check("coffee restores patience mid-call", usedInCall == true and liveCall.npc.p
 	"patience now " .. tostring(liveCall and math.floor(liveCall.npc.patience)))
 check("the coffee was consumed", (PlayerDataManager.get(player).premium.inventory.coffee_refill or 0) == 0)
 CallManager.hangUp(player)
+
+-- Streaks: they build on wins, pay more, and reset the moment you lose one.
+local streakPlayer = { UserId = 11, Name = "Streaky", DisplayName = "Streaky" }
+PlayerDataManager.load(streakPlayer)
+local streakProfile = PlayerDataManager.get(streakPlayer)
+for _ = 1, 4 do
+	PlayerDataManager.recordCall(streakPlayer, { outcome = "success", duration = 30, difficulty = "Normal", difficultyOrder = 2 })
+end
+check("a streak builds on wins", streakProfile.stats.successStreak == 4, tostring(streakProfile.stats.successStreak))
+
+local streakResult = {
+	outcome = "success",
+	npc = { tier = "Normal", rewardMul = 1 },
+	trust = 70,
+	suspicion = 50,
+	duration = 300,
+	perfect = false,
+	difficultyKey = "Normal",
+	bonuses = {},
+}
+local _, streakBreakdown = RewardManager.calculate(streakPlayer, streakResult)
+local sawStreakBonus = false
+for _, line in ipairs(streakBreakdown) do
+	if string.find(line.label, "Streak", 1, true) then
+		sawStreakBonus = true
+	end
+end
+check("a streak pays a bonus", sawStreakBonus)
+
+PlayerDataManager.recordCall(streakPlayer, { outcome = "hangup", duration = 30, difficulty = "Normal", difficultyOrder = 2 })
+check("one loss resets the streak", streakProfile.stats.successStreak == 0)
+check("the best streak is remembered", streakProfile.stats.bestSuccessStreak == 4)
 
 -- The Alias Licence must be gated on ownership, not just on having set a name.
 PlayerDataManager.setAlias(player, "Barry")

@@ -5,7 +5,7 @@
 
 local Config = {}
 
-Config.Version = "1.2.0"
+Config.Version = "1.3.0"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
@@ -85,6 +85,9 @@ Config.Rewards = {
 		FastCall = { mult = 0.20, label = "Quick Talker" },
 		PerfectRun = { mult = 0.50, label = "Flawless Script" },
 		HardNPC = { mult = 0.15, label = "Tough Customer" },
+		-- Consecutive wins. Capped so a streak is a reason to keep playing
+		-- rather than the only thing that matters.
+		Streak = { perCall = 0.08, max = 0.6, label = "Streak" },
 	},
 	-- Consolation credits for a failed call so progression never fully stalls.
 	FailureConsolation = { min = 5, max = 20 },

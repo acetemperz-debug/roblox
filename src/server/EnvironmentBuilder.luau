@@ -20,8 +20,11 @@ EnvironmentBuilder._connection = nil
 
 local THEME = {
 	Floor = Color3.fromRGB(58, 62, 74),
-	Carpet = Color3.fromRGB(46, 52, 68),
-	Wall = Color3.fromRGB(214, 210, 200),
+	Carpet = Color3.fromRGB(42, 47, 64),
+	-- Mid-tone walls. The old near-white ones plus 25 point lights washed the
+	-- whole room out to a flat white.
+	Wall = Color3.fromRGB(78, 84, 104),
+	WallTrim = Color3.fromRGB(52, 57, 74),
 	Desk = Color3.fromRGB(124, 96, 70),
 	DeskLegs = Color3.fromRGB(70, 74, 86),
 	Monitor = Color3.fromRGB(32, 34, 42),
@@ -277,22 +280,49 @@ local function buildRoomShell(parent: Instance)
 		})
 	end
 
-	-- Ceiling lights.
+	-- Ceiling lights. Every fixture glows (Neon costs nothing), but only a
+	-- sparse grid of them actually casts light -- 25 overlapping PointLights at
+	-- brightness 1.2 is what blew the room out to white.
 	for x = -50, 50, 25 do
 		for z = -40, 40, 20 do
 			local lightPart = part({
 				Size = Vector3.new(8, 0.3, 4),
 				CFrame = CFrame.new(x, 23.4, z),
-				Color = Color3.fromRGB(255, 252, 235),
+				Color = Color3.fromRGB(226, 240, 255),
 				Material = Enum.Material.Neon,
 				Parent = parent,
 			})
-			local light = Instance.new("PointLight")
-			light.Brightness = 1.2
-			light.Range = 26
-			light.Color = Color3.fromRGB(255, 248, 230)
-			light.Parent = lightPart
+			if (x + 50) % 50 == 0 and (z + 40) % 40 == 0 then
+				local light = Instance.new("PointLight")
+				light.Brightness = 0.55
+				light.Range = 24
+				light.Color = Color3.fromRGB(226, 238, 255)
+				light.Parent = lightPart
+			end
 		end
+	end
+
+	-- Accent strips down the long walls, purely decorative.
+	for _, z in ipairs({ -59, 59 }) do
+		local strip = part({
+			Size = Vector3.new(120, 0.6, 0.3),
+			CFrame = CFrame.new(0, 17, z),
+			Color = THEME.Accent,
+			Material = Enum.Material.Neon,
+			Parent = parent,
+			Name = "AccentStrip",
+		})
+		strip.Transparency = 0.15
+	end
+	for _, x in ipairs({ -69, 69 }) do
+		part({
+			Size = Vector3.new(0.3, 0.6, 110),
+			CFrame = CFrame.new(x, 17, 0),
+			Color = Color3.fromRGB(226, 96, 168),
+			Material = Enum.Material.Neon,
+			Parent = parent,
+			Name = "AccentStrip",
+		})
 	end
 end
 
@@ -747,9 +777,44 @@ function EnvironmentBuilder.build()
 
 	root.Parent = Workspace
 
-	Lighting.Ambient = Color3.fromRGB(110, 112, 120)
-	Lighting.OutdoorAmbient = Color3.fromRGB(90, 92, 100)
-	Lighting.Brightness = 1.6
+	-- Tuned deliberately: a dim room with bright neon in it reads far better
+	-- than a bright room, and gives the bloom something to catch.
+	Lighting.Ambient = Color3.fromRGB(58, 60, 74)
+	Lighting.OutdoorAmbient = Color3.fromRGB(62, 64, 80)
+	Lighting.Brightness = 1.0
+	Lighting.ClockTime = 15
+	Lighting.GlobalShadows = true
+	Lighting.FogEnd = 400
+
+	local function ensureEffect(className: string, name: string, props)
+		local existing = Lighting:FindFirstChild(name)
+		if existing then
+			existing:Destroy()
+		end
+		local effect = Instance.new(className)
+		effect.Name = name
+		for key, value in pairs(props) do
+			effect[key] = value
+		end
+		effect.Parent = Lighting
+		return effect
+	end
+
+	ensureEffect("BloomEffect", "MacrosoftBloom", {
+		Intensity = 0.7,
+		Size = 20,
+		Threshold = 1.35,
+	})
+	ensureEffect("ColorCorrectionEffect", "MacrosoftColour", {
+		Saturation = 0.22,
+		Contrast = 0.1,
+		Brightness = 0.01,
+		TintColor = Color3.fromRGB(255, 249, 245),
+	})
+	ensureEffect("SunRaysEffect", "MacrosoftRays", {
+		Intensity = 0.03,
+		Spread = 0.4,
+	})
 
 	-- Animate colleagues.
 	if not EnvironmentBuilder._connection then

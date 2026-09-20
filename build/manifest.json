@@ -182,6 +182,12 @@
 			"target": "client"
 		},
 		{
+			"path": "src/client/Juice.luau",
+			"name": "Juice",
+			"class": "ModuleScript",
+			"target": "client"
+		},
+		{
 			"path": "src/client/MacrosoftClient.client.luau",
 			"name": "MacrosoftClient",
 			"class": "LocalScript",

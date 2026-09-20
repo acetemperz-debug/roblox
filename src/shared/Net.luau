@@ -34,6 +34,7 @@ local EVENTS = {
 	"HeatWarning", -- ({title, body, at})
 	"RaidAlert", -- (outcome)
 	"OfflineEarnings", -- ({amount, seconds, capped})
+	"Broadcast", -- ({text, kind}) to everyone, for the live ticker
 }
 
 local FUNCTIONS = {

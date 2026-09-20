@@ -60,6 +60,17 @@ function RewardManager.calculate(player: Player, result)
 		table.insert(breakdown, { label = b.HardNPC.label, amount = math.floor(base * b.HardNPC.mult) })
 	end
 
+	-- The streak counts the calls before this one, so a first win pays no bonus.
+	local streak = data and data.stats.successStreak or 0
+	if streak > 0 then
+		local streakMult = math.min(b.Streak.max, streak * b.Streak.perCall)
+		bonusMult += streakMult
+		table.insert(breakdown, {
+			label = string.format("%s x%d", b.Streak.label, streak + 1),
+			amount = math.floor(base * streakMult),
+		})
+	end
+
 	total = base * (1 + bonusMult)
 
 	-- A more sophisticated operation makes every call worth more. This is what

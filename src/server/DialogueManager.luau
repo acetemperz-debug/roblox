@@ -77,6 +77,11 @@ function DialogueManager.buildView(situation, callState)
 		end
 	end
 
+	-- Situations are authored best-line-first, which made "always click the top
+	-- one" a winning strategy. The displayed order is shuffled; `index` still
+	-- points at the real choice, so nothing downstream cares.
+	Util.shuffle(choices, random)
+
 	return {
 		situationId = situation.id,
 		prompt = prompt,

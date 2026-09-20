@@ -57,6 +57,9 @@ function RandomEventManager.buildView(event, callState)
 			lockReason = locked and ("Unlocks at dialogue level " .. tostring(choice.minLevel)) or nil,
 		})
 	end
+	-- Same reason as DialogueManager: never let position give the answer away.
+	Util.shuffle(choices, random)
+
 	return {
 		situationId = event.id,
 		isEvent = true,

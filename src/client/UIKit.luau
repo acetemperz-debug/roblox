@@ -42,6 +42,17 @@ function UIKit.stroke(colour: Color3, thickness: number?, transparency: number?)
 	})
 end
 
+function UIKit.gradient(top: Color3, bottom: Color3, rotation: number?)
+	return UIKit.new("UIGradient", {
+		Color = ColorSequence.new(top, bottom),
+		Rotation = rotation or 90,
+	})
+end
+
+-- Chunky headline text. Used for anything that should read as a game rather
+-- than a spreadsheet.
+UIKit.HeadlineFont = Enum.Font.FredokaOne
+
 function UIKit.padding(all: number, extra)
 	extra = extra or {}
 	return UIKit.new("UIPadding", {
@@ -68,7 +79,7 @@ function UIKit.panel(props, children)
 		merged[key] = value
 	end
 	local frame = UIKit.new("Frame", merged, children)
-	UIKit.corner(10).Parent = frame
+	UIKit.corner(props and props.CornerRadius or 14).Parent = frame
 	return frame
 end
 
@@ -101,7 +112,7 @@ function UIKit.button(props)
 		merged[key] = value
 	end
 	local button = UIKit.new("TextButton", merged)
-	UIKit.corner(8).Parent = button
+	UIKit.corner(12).Parent = button
 
 	-- Hover reads the colour at hover time rather than at creation time, so a
 	-- button that is later restyled (a selected difficulty, an owned upgrade)

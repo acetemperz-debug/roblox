@@ -43,6 +43,8 @@ local function defaultProfile()
 			highestDifficultyOrder = 0,
 			failStreak = 0,
 			bestStreak = 0,
+			successStreak = 0,
+			bestSuccessStreak = 0,
 			timesOnHold = 0,
 			totalCallSeconds = 0,
 			bestSingleReward = 0,
@@ -291,6 +293,10 @@ function PlayerDataManager.recordCall(player: Player, result)
 	if result.outcome == "success" then
 		stats.successfulCalls += 1
 		stats.failStreak = 0
+		stats.successStreak += 1
+		if stats.successStreak > stats.bestSuccessStreak then
+			stats.bestSuccessStreak = stats.successStreak
+		end
 		if result.difficulty then
 			stats.successByDifficulty[result.difficulty] = (stats.successByDifficulty[result.difficulty] or 0) + 1
 		end
@@ -300,6 +306,7 @@ function PlayerDataManager.recordCall(player: Player, result)
 		end
 	else
 		stats.failedCalls += 1
+		stats.successStreak = 0
 		stats.failStreak += 1
 		if stats.failStreak > stats.bestStreak then
 			stats.bestStreak = stats.failStreak
