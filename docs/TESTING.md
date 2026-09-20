@@ -244,7 +244,7 @@ seconds.
 healthy start:
 
 ```
-[Macrosoft] v1.3.1 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
+[Macrosoft] v1.3.2 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
 [Macrosoft] Robux store: 0 of 14 items have an asset id set. Items without one show as unavailable.
 ```
 
@@ -256,9 +256,19 @@ No first line means the server script did not run — check it is a **Script**
 The shared folder is missing or misnamed. It must be exactly
 `MacrosoftShared` inside `ReplicatedStorage`.
 
-**Top bar says "saving disabled this session".** API services are off (step 3
-above), or the DataStore read failed. This is deliberate: the game refuses to
-save over a profile it could not read, rather than wiping your progress.
+**Top bar shows a red "⚠ not saving" next to your rank.** Progress is running
+in memory only and will vanish when you stop. Two possible causes:
+
+* **Studio Access to API Services is off.** Home tab → **Game Settings** (the
+  gear) → **Security** → turn on *Enable Studio Access to API Services*, then
+  **Save**.
+* **The place has never been published.** DataStores need a published place —
+  a local `Place1.rbxl` cannot use them no matter what the settings say.
+  **File → Publish to Roblox As…**, save it as a new experience (it can stay
+  private), then set the API services toggle above.
+
+The game will not save over a profile it failed to read, so a failed load costs
+you nothing permanent — but an unpublished place never had anything to load.
 
 **Store items all say "Unavailable".** Expected until you create them on the
 Creator Dashboard and paste the IDs into `src/shared/Products.luau`. See step 8

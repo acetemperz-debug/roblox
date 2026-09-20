@@ -304,7 +304,7 @@ return Achievements
 
 local Config = {}
 
-Config.Version = "1.3.1"
+Config.Version = "1.3.2"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
@@ -8313,8 +8313,18 @@ function PlayerDataManager.load(player: Player)
 			profile.loadFailed = true
 			warn("[PlayerDataManager] Load failed for " .. player.Name .. "; saving disabled this session.")
 		end
-	elseif not Config.DataStore.StudioFallbackToMemory then
-		profile.loadFailed = true
+	else
+		-- No DataStore at all: either API services are off, or the place has
+		-- never been published (DataStores need a published place). Running in
+		-- memory is fine, but it used to do so silently, which reads exactly
+		-- like the game losing your progress.
+		profile.saveUnavailable = true
+		if not Config.DataStore.StudioFallbackToMemory then
+			profile.loadFailed = true
+		end
+		warn("[PlayerDataManager] No DataStore access -- progress will not save. "
+			.. "Publish the place, then turn on Game Settings > Security > "
+			.. "Studio Access to API Services.")
 	end
 
 	profile.lastSeen = os.time()
@@ -8505,7 +8515,9 @@ function PlayerDataManager.publicView(player: Player)
 		stats = profile.stats,
 		settings = profile.settings,
 		bonuses = PlayerDataManager.getBonuses(player),
-		saveDisabled = profile.loadFailed == true,
+		saveDisabled = profile.loadFailed == true or profile.saveUnavailable == true,
+		saveNote = profile.saveUnavailable and "not saving - no API access"
+			or (profile.loadFailed and "not saving - load failed" or nil),
 		operation = {
 			method = profile.operation.method,
 			facility = profile.operation.facility,
@@ -11501,7 +11513,8 @@ local function applyData(data)
 	state.data = data
 	state.difficulty = data.settings.difficulty or state.difficulty
 	ui.topBar.credits.Text = Util.formatNumber(data.credits) .. " Credits"
-	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and "   (saving disabled this session)" or "")
+	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and ("   ⚠ " .. (data.saveNote or "not saving")) or "")
+	ui.topBar.rank.TextColor3 = data.saveDisabled and T.Danger or T.SubText
 
 	local streak = data.stats and data.stats.successStreak or 0
 	ui.topBar.streakPill.Visible = streak >= 2

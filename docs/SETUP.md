@@ -155,7 +155,7 @@ This script calls `Net.init()`, which creates
 **Test it.** Press Play. The Output window should show:
 
 ```
-[Macrosoft] v1.3.1 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
+[Macrosoft] v1.3.2 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
 [Macrosoft] Robux store: 0 of 14 items have an asset id set. Items without one show as unavailable.
 ```
 

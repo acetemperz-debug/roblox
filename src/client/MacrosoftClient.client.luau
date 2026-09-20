@@ -1281,7 +1281,8 @@ local function applyData(data)
 	state.data = data
 	state.difficulty = data.settings.difficulty or state.difficulty
 	ui.topBar.credits.Text = Util.formatNumber(data.credits) .. " Credits"
-	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and "   (saving disabled this session)" or "")
+	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and ("   ⚠ " .. (data.saveNote or "not saving")) or "")
+	ui.topBar.rank.TextColor3 = data.saveDisabled and T.Danger or T.SubText
 
 	local streak = data.stats and data.stats.successStreak or 0
 	ui.topBar.streakPill.Visible = streak >= 2

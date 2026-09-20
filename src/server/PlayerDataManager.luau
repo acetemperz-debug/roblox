@@ -176,8 +176,18 @@ function PlayerDataManager.load(player: Player)
 			profile.loadFailed = true
 			warn("[PlayerDataManager] Load failed for " .. player.Name .. "; saving disabled this session.")
 		end
-	elseif not Config.DataStore.StudioFallbackToMemory then
-		profile.loadFailed = true
+	else
+		-- No DataStore at all: either API services are off, or the place has
+		-- never been published (DataStores need a published place). Running in
+		-- memory is fine, but it used to do so silently, which reads exactly
+		-- like the game losing your progress.
+		profile.saveUnavailable = true
+		if not Config.DataStore.StudioFallbackToMemory then
+			profile.loadFailed = true
+		end
+		warn("[PlayerDataManager] No DataStore access -- progress will not save. "
+			.. "Publish the place, then turn on Game Settings > Security > "
+			.. "Studio Access to API Services.")
 	end
 
 	profile.lastSeen = os.time()
@@ -368,7 +378,9 @@ function PlayerDataManager.publicView(player: Player)
 		stats = profile.stats,
 		settings = profile.settings,
 		bonuses = PlayerDataManager.getBonuses(player),
-		saveDisabled = profile.loadFailed == true,
+		saveDisabled = profile.loadFailed == true or profile.saveUnavailable == true,
+		saveNote = profile.saveUnavailable and "not saving - no API access"
+			or (profile.loadFailed and "not saving - load failed" or nil),
 		operation = {
 			method = profile.operation.method,
 			facility = profile.operation.facility,
