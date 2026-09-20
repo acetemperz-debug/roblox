@@ -304,7 +304,7 @@ return Achievements
 
 local Config = {}
 
-Config.Version = "1.3.2"
+Config.Version = "1.3.3"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
@@ -5929,11 +5929,32 @@ end
 
 --------------------------------------------------------------------------------
 
+-- A default Roblox place ships with a Baseplate whose top face sits at y=0,
+-- exactly where our floor goes, and a SpawnLocation that competes with ours for
+-- where players appear. Clear only those two, by name and class, so installing
+-- into a fresh place does not z-fight or spawn people in a wall.
+local function clearDefaultPlaceParts()
+	local removed = 0
+	for _, child in ipairs(Workspace:GetChildren()) do
+		if child.Name == "Baseplate" and child:IsA("BasePart") then
+			child:Destroy()
+			removed += 1
+		elseif child:IsA("SpawnLocation") and child.Name ~= "CallCentreSpawn" then
+			child:Destroy()
+			removed += 1
+		end
+	end
+	if removed > 0 then
+		print(string.format("[Macrosoft] Removed %d default place part(s) that clash with the call centre.", removed))
+	end
+end
+
 function EnvironmentBuilder.build()
 	local existing = Workspace:FindFirstChild(ROOT_NAME)
 	if existing then
 		existing:Destroy()
 	end
+	clearDefaultPlaceParts()
 	table.clear(employees)
 	raidModel = nil
 	raidLight = nil

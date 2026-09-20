@@ -5,7 +5,7 @@
 
 local Config = {}
 
-Config.Version = "1.3.2"
+Config.Version = "1.3.3"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
