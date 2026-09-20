@@ -55,6 +55,10 @@ Download **`build/MacrosoftSupport.rbxlx`**, open it in Roblox Studio, turn on
 Everything is already in the right service and the world and UI build
 themselves at runtime.
 
+To add it to a place you already have, use `build/MacrosoftSupport.rbxmx`
+instead: right-click in Explorer → Insert from File, then drag the three
+folders where their names say.
+
 `docs/TESTING.md` has the full walkthrough, command-bar shortcuts for forcing a
 raid or a specific caller, and what to check.
 

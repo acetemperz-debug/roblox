@@ -31,6 +31,22 @@ and reopen it.
 
 ---
 
+## 1b. Adding it to a place you already have
+
+Opening the place file above replaces whatever you had open. If you want the
+game inside an existing place instead, use the model:
+
+1. Download **`build/MacrosoftSupport.rbxmx`**.
+2. In Studio, right-click anywhere in the Explorer → **Insert from File…** →
+   pick it. A `MacrosoftSupport` folder appears with three folders inside.
+3. Drag **`MacrosoftShared`** into `ReplicatedStorage`.
+4. Drag **`MacrosoftServer`** into `ServerScriptService`.
+5. Open **`DRAG_MY_CONTENTS_INTO_StarterPlayerScripts`** and drag its three
+   children (`UIKit`, `Interface`, `MacrosoftClient`) into
+   `StarterPlayer/StarterPlayerScripts`. They must be direct children there,
+   not inside a folder — they find each other through `script.Parent`.
+6. Delete the now-empty `MacrosoftSupport` folder and press Play.
+
 ## 2. Rojo (what to use if you are actually developing)
 
 Editing code, rebuilding a place and reopening it gets old fast. Rojo syncs the
@@ -136,6 +152,25 @@ Personality ids live in `src/shared/Personalities.luau`: `friendly_elder`,
 `rival_centre`, `the_auditor`, `drama_student` and the rest.
 
 ---
+
+## Why there is no single command-bar paste
+
+The Studio command bar is a single-line input. The game is about 370,000
+characters of Luau across 32 files, so pasting it in one go gets truncated —
+there is no version of this that fits.
+
+Two things would make a one-paste install possible, and both need a decision
+from you rather than a code change:
+
+* **Make the repo public.** Then a ~40-line loader pasted into the command bar
+  can pull every file from `raw.githubusercontent.com` with `HttpService` and
+  build the tree itself. This publishes the source to anyone with the link.
+* **Publish the model to Roblox once**, then `require(assetId)` or
+  `InsertService:LoadAsset(assetId)` from the command bar afterwards. Needs
+  your Roblox account to upload it.
+
+Until then, opening `MacrosoftSupport.rbxlx` is fewer steps than a paste would
+have been anyway: download, open, Play.
 
 ## Testing without Studio at all
 
