@@ -50,7 +50,12 @@ interface are both generated at runtime.
 
 ## Testing it right now
 
-Download **`build/MacrosoftSupport.rbxlx`**, open it in Roblox Studio, turn on
+Fastest: paste **`tools/StudioLoader.lua`** into the Roblox Studio command bar.
+It downloads every script from this repo into the right service, in about
+twenty seconds, and re-running it updates an existing install. Needs the repo
+to stay public and HTTP requests allowed.
+
+Otherwise: download **`build/MacrosoftSupport.rbxlx`**, open it in Roblox Studio, turn on
 **Game Settings → Security → Studio Access to API Services**, and press Play.
 Everything is already in the right service and the world and UI build
 themselves at runtime.

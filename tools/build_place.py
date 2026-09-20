@@ -22,12 +22,14 @@ There is deliberately no "paste it all into the command bar" output: the source
 is ~370 KB and the command bar is a single-line box, so it would be truncated.
 """
 import html
+import json
 import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PLACE_OUT = ROOT / "build" / "MacrosoftSupport.rbxlx"
 MODEL_OUT = ROOT / "build" / "MacrosoftSupport.rbxmx"
+MANIFEST_OUT = ROOT / "build" / "manifest.json"
 
 XML_HEADER = (
     '<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" '
@@ -174,9 +176,29 @@ def build() -> str:
     return "".join(parts)
 
 
+def build_manifest() -> str:
+    """File list for tools/StudioLoader.lua, which installs over HTTP."""
+    targets = {"shared": "shared", "server": "server", "client": "client"}
+    entries = []
+    for key in ("shared", "server", "client"):
+        for file in sources_in(ROOT / "src" / key):
+            class_name, name = class_and_name(file)
+            entries.append(
+                {
+                    "path": f"src/{key}/{file.name}",
+                    "name": name,
+                    "class": class_name,
+                    "target": targets[key],
+                }
+            )
+    return json.dumps({"version": 1, "files": entries}, indent="\t") + "\n"
+
+
 if __name__ == "__main__":
     PLACE_OUT.parent.mkdir(parents=True, exist_ok=True)
     PLACE_OUT.write_text(build())
     print(f"wrote {PLACE_OUT.relative_to(ROOT)} ({PLACE_OUT.stat().st_size // 1024} KB)")
     MODEL_OUT.write_text(build_model())
     print(f"wrote {MODEL_OUT.relative_to(ROOT)} ({MODEL_OUT.stat().st_size // 1024} KB)")
+    MANIFEST_OUT.write_text(build_manifest())
+    print(f"wrote {MANIFEST_OUT.relative_to(ROOT)}")

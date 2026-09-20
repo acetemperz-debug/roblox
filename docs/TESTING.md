@@ -1,6 +1,32 @@
 # How to test the game
 
-Three ways in, fastest first.
+Four ways in, fastest first.
+
+---
+
+## 0. Paste the installer into the Studio command bar (~20 seconds)
+
+Open Studio on any place, open the **command bar** (View → Command Bar), paste
+the contents of **`tools/StudioLoader.lua`**, press Enter.
+
+It downloads every script from GitHub and puts it in the right service. Then
+turn on **Game Settings → Security → Studio Access to API Services** and press
+Play.
+
+Re-run the same paste any time to pull the latest push — it replaces the old
+copy rather than duplicating it.
+
+Requirements and caveats:
+
+* The repo has to stay **public**; the loader fetches over plain HTTPS with no
+  credentials. Make it private again and the loader stops working (the place
+  and model files below still work).
+* It needs **Allow HTTP Requests**. The loader turns that on itself if it can,
+  and tells you where the setting is if it cannot.
+* It is pinned to the branch `claude/roblox-scam-call-centre-yx6beg`. Change
+  `BASE` in the loader if you move the code.
+* It installs into the place you currently have open, so it is also the answer
+  for "add this to my existing place".
 
 ---
 
@@ -153,24 +179,16 @@ Personality ids live in `src/shared/Personalities.luau`: `friendly_elder`,
 
 ---
 
-## Why there is no single command-bar paste
+## Why the installer downloads instead of carrying the code
 
-The Studio command bar is a single-line input. The game is about 370,000
-characters of Luau across 32 files, so pasting it in one go gets truncated —
-there is no version of this that fits.
+The Studio command bar is a single-line input, and the game is about 370,000
+characters of Luau across 32 files. Pasting all of it would be truncated, so
+`StudioLoader.lua` is a 2 KB script that fetches the rest at runtime from
+`build/manifest.json` plus one request per file.
 
-Two things would make a one-paste install possible, and both need a decision
-from you rather than a code change:
-
-* **Make the repo public.** Then a ~40-line loader pasted into the command bar
-  can pull every file from `raw.githubusercontent.com` with `HttpService` and
-  build the tree itself. This publishes the source to anyone with the link.
-* **Publish the model to Roblox once**, then `require(assetId)` or
-  `InsertService:LoadAsset(assetId)` from the command bar afterwards. Needs
-  your Roblox account to upload it.
-
-Until then, opening `MacrosoftSupport.rbxlx` is fewer steps than a paste would
-have been anyway: download, open, Play.
+The loader has no `--` line comments on purpose: if the command bar collapses
+the paste onto one line, a line comment would swallow everything after it. The
+build checks that the loader still compiles when flattened.
 
 ## Testing without Studio at all
 

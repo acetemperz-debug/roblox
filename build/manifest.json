@@ -1,0 +1,197 @@
+{
+	"version": 1,
+	"files": [
+		{
+			"path": "src/shared/Achievements.luau",
+			"name": "Achievements",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Config.luau",
+			"name": "Config",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/DialogueLibrary.luau",
+			"name": "DialogueLibrary",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Difficulty.luau",
+			"name": "Difficulty",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/NPCNames.luau",
+			"name": "NPCNames",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Net.luau",
+			"name": "Net",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Operation.luau",
+			"name": "Operation",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Personalities.luau",
+			"name": "Personalities",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Products.luau",
+			"name": "Products",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/RandomEvents.luau",
+			"name": "RandomEvents",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Ranks.luau",
+			"name": "Ranks",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Upgrades.luau",
+			"name": "Upgrades",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/shared/Util.luau",
+			"name": "Util",
+			"class": "ModuleScript",
+			"target": "shared"
+		},
+		{
+			"path": "src/server/AchievementManager.luau",
+			"name": "AchievementManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/CallManager.luau",
+			"name": "CallManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/CosmeticsManager.luau",
+			"name": "CosmeticsManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/DialogueManager.luau",
+			"name": "DialogueManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/EnvironmentBuilder.luau",
+			"name": "EnvironmentBuilder",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/HeatManager.luau",
+			"name": "HeatManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/LeaderboardManager.luau",
+			"name": "LeaderboardManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/MacrosoftServer.server.luau",
+			"name": "MacrosoftServer",
+			"class": "Script",
+			"target": "server"
+		},
+		{
+			"path": "src/server/MonetisationManager.luau",
+			"name": "MonetisationManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/NPCGenerator.luau",
+			"name": "NPCGenerator",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/NPCPersonalitySystem.luau",
+			"name": "NPCPersonalitySystem",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/OperationManager.luau",
+			"name": "OperationManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/PlayerDataManager.luau",
+			"name": "PlayerDataManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/RandomEventManager.luau",
+			"name": "RandomEventManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/RewardManager.luau",
+			"name": "RewardManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/UpgradeManager.luau",
+			"name": "UpgradeManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/client/Interface.luau",
+			"name": "Interface",
+			"class": "ModuleScript",
+			"target": "client"
+		},
+		{
+			"path": "src/client/MacrosoftClient.client.luau",
+			"name": "MacrosoftClient",
+			"class": "LocalScript",
+			"target": "client"
+		},
+		{
+			"path": "src/client/UIKit.luau",
+			"name": "UIKit",
+			"class": "ModuleScript",
+			"target": "client"
+		}
+	]
+}
