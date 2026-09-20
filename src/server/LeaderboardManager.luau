@@ -39,6 +39,15 @@ local BOARDS = {
 	},
 }
 
+table.insert(BOARDS, {
+	name = "Board_Operation",
+	key = Config.DataStore.LeaderboardKey .. "_operation",
+	suffix = " passive",
+	value = function(stats)
+		return stats.passiveEarned or 0
+	end,
+})
+
 for _, difficultyKey in ipairs(Difficulty.Order) do
 	table.insert(BOARDS, {
 		name = "Board_" .. difficultyKey,

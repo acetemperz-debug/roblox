@@ -22,11 +22,13 @@ local realRequire = loadModule
 local SHARED = {
 	"Config", "Util", "Net", "NPCNames", "Personalities", "DialogueLibrary",
 	"RandomEvents", "Upgrades", "Ranks", "Achievements", "Difficulty", "Products",
+	"Operation",
 }
 local SERVER = {
 	"PlayerDataManager", "NPCGenerator", "NPCPersonalitySystem", "DialogueManager",
 	"RandomEventManager", "RewardManager", "UpgradeManager", "AchievementManager",
-	"CallManager", "LeaderboardManager", "EnvironmentBuilder",
+	"CallManager", "LeaderboardManager", "EnvironmentBuilder", "OperationManager",
+	"HeatManager",
 }
 
 local sharedFolder = Stub.newInstance("Folder")
@@ -76,17 +78,21 @@ local Config = require(sharedFolder.Config)
 local Personalities = require(sharedFolder.Personalities)
 local DialogueLibrary = require(sharedFolder.DialogueLibrary)
 local RandomEvents = require(sharedFolder.RandomEvents)
-local Upgrades = require(sharedFolder.Upgrades)
 local Ranks = require(sharedFolder.Ranks)
 local Achievements = require(sharedFolder.Achievements)
 local Difficulty = require(sharedFolder.Difficulty)
 local NPCNames = require(sharedFolder.NPCNames)
 local Products = require(sharedFolder.Products)
+local Upgrades = require(sharedFolder.Upgrades)
+local Util = require(sharedFolder.Util)
+local Operation = require(sharedFolder.Operation)
 
 local PlayerDataManager = require(serverFolder.PlayerDataManager)
 local CallManager = require(serverFolder.CallManager)
 local NPCGenerator = require(serverFolder.NPCGenerator)
 local LeaderboardManager = require(serverFolder.LeaderboardManager)
+local OperationManager = require(serverFolder.OperationManager)
+local HeatManager = require(serverFolder.HeatManager)
 
 --------------------------------------------------------------------------------
 -- Assertions on content volume (the design brief's minimums).
@@ -342,7 +348,7 @@ print("")
 print("Play simulation")
 math.randomseed(20260916)
 -- Seed the shared generator too, so a run is reproducible end to end.
-require(sharedFolder.Util).setSeed(20260916)
+Util.setSeed(20260916)
 
 local CALLS_PER_DIFFICULTY = 80
 for _, strategy in ipairs({ "reader", "best", "random" }) do
@@ -458,6 +464,235 @@ end
 check("every winnable personality wins sometimes", #unwinnable == 0, #unwinnable > 0 and table.concat(unwinnable, ", ") or "none stuck at 0%")
 
 --------------------------------------------------------------------------------
+-- Tycoon layer: economy, heat and raids
+--------------------------------------------------------------------------------
+
+print("")
+print("Operation economy")
+
+local function opState(methodIndex, facilityIndex, staffId, staffCount, kitted)
+	local op = Operation.defaultState()
+	op.method = Operation.Methods[methodIndex].id
+	op.facility = Operation.Facilities[facilityIndex].id
+	if staffCount > 0 then
+		op.staff[staffId] = staffCount
+	end
+	if kitted then
+		for _, item in ipairs(Operation.Security) do
+			op.security[item.id] = true
+		end
+		for _, item in ipairs(Operation.Tradecraft) do
+			if item.requiresMethod <= methodIndex then
+				op.tradecraft[item.id] = true
+			end
+		end
+	end
+	return op
+end
+
+-- Costs and payouts must climb with every tier, or a tier is pointless.
+local ladderOk = true
+for index = 2, #Operation.Methods do
+	local previous, current = Operation.Methods[index - 1], Operation.Methods[index]
+	if current.cost <= previous.cost or current.incomeMul <= previous.incomeMul or current.heatPerSecond <= previous.heatPerSecond then
+		ladderOk = false
+		print("       method ladder breaks at " .. current.id)
+	end
+end
+for index = 2, #Operation.Employees do
+	local previous, current = Operation.Employees[index - 1], Operation.Employees[index]
+	if current.cost <= previous.cost or current.incomePerSecond <= previous.incomePerSecond then
+		ladderOk = false
+		print("       employee ladder breaks at " .. current.id)
+	end
+	if current.heatPerSecond >= previous.heatPerSecond then
+		ladderOk = false
+		print("       better staff should be quieter: " .. current.id)
+	end
+end
+for index = 2, #Operation.Facilities do
+	local previous, current = Operation.Facilities[index - 1], Operation.Facilities[index]
+	if current.cost <= previous.cost or current.desks <= previous.desks then
+		ladderOk = false
+		print("       facility ladder breaks at " .. current.id)
+	end
+end
+check("every ladder climbs", ladderOk)
+
+-- Every employee must earn more than they cost to keep.
+local wagesOk = true
+for _, employee in ipairs(Operation.Employees) do
+	if employee.incomePerSecond <= employee.wagePerSecond then
+		wagesOk = false
+		print("       " .. employee.id .. " costs more in wages than they bring in")
+	end
+end
+check("no employee is a net loss", wagesOk)
+
+-- A brand new player must not be raided for doing nothing much.
+local starter = Operation.summarise(opState(1, 1, "work_experience", 3, false))
+check("a starter operation never overheats", starter.heatRate <= 0,
+	string.format("%.3f heat/s", starter.heatRate))
+
+-- Every tier above the first must be dangerous bare and survivable kitted.
+local curveOk = true
+for index = 2, #Operation.Methods do
+	local facility = math.min(index, #Operation.Facilities)
+	local desks = Operation.Facilities[facility].desks
+	local staffId = Operation.Employees[math.min(index, #Operation.Employees)].id
+
+	local bare = Operation.summarise(opState(index, facility, staffId, desks, false))
+	local kitted = Operation.summarise(opState(index, facility, staffId, desks, true))
+
+	if bare.heatRate <= 0 then
+		curveOk = false
+		print("       " .. Operation.Methods[index].name .. " is safe with no security at all")
+	end
+	if kitted.heatRate >= bare.heatRate then
+		curveOk = false
+		print("       security does not help on " .. Operation.Methods[index].name)
+	end
+	if kitted.escapeChance <= bare.escapeChance then
+		curveOk = false
+		print("       security does not improve the raid odds on " .. Operation.Methods[index].name)
+	end
+end
+check("every tier is dangerous bare and calmer kitted", curveOk)
+
+-- Escape chance must stay inside its bounds at both extremes.
+local worst = Operation.summarise(opState(#Operation.Methods, 1, "work_experience", 1, false))
+local best = Operation.summarise(opState(1, 1, "work_experience", 1, true))
+check("escape chance stays in bounds",
+	worst.escapeChance >= Operation.Raid.MinEscapeChance and best.escapeChance <= Operation.Raid.MaxEscapeChance,
+	string.format("%.0f%% to %.0f%%", worst.escapeChance * 100, best.escapeChance * 100))
+
+-- Hiring costs must escalate, and severance must never exceed the hire price.
+local employee = Operation.EmployeeById.caller
+local first, tenth = Operation.hireCost(employee, 0), Operation.hireCost(employee, 10)
+check("hiring gets more expensive", tenth > first,
+	Util.formatNumber(first) .. " -> " .. Util.formatNumber(tenth))
+check("severance never exceeds the hire cost", Operation.severance(employee, 1) < first)
+
+print("")
+print("Operation actions")
+
+-- Work on a clean profile so the play simulation above cannot skew this.
+local tycoon = { UserId = 8, Name = "Tycoon", DisplayName = "Tycoon" }
+PlayerDataManager.load(tycoon)
+local tycoonProfile = PlayerDataManager.get(tycoon)
+tycoonProfile.credits = 50000
+tycoonProfile.stats.lifetimeEarnings = 1000000
+tycoonProfile.stats.successfulCalls = 400
+PlayerDataManager.recalculateRank(tycoon)
+
+local hired = OperationManager.hire(tycoon, "work_experience", 2)
+check("hiring works", hired == true and (tycoonProfile.operation.staff.work_experience or 0) == 2)
+
+-- Desks are a hard cap.
+OperationManager.hire(tycoon, "work_experience", 50)
+check("hiring stops at the desk cap",
+	OperationManager.summary(tycoon).headcount <= OperationManager.summary(tycoon).deskCap,
+	OperationManager.summary(tycoon).headcount .. " / " .. OperationManager.summary(tycoon).deskCap .. " desks")
+
+local creditsBefore = tycoonProfile.credits
+OperationManager.fire(tycoon, "work_experience", 1)
+check("firing refunds severance", tycoonProfile.credits > creditsBefore)
+
+-- Passive income is credited but must never count as lifetime earnings.
+local lifetimeBefore = tycoonProfile.stats.lifetimeEarnings
+local creditsBeforeTick = tycoonProfile.credits
+OperationManager.step(tycoon, 10)
+check("passive income pays out", tycoonProfile.credits > creditsBeforeTick,
+	string.format("+%s", Util.formatNumber(tycoonProfile.credits - creditsBeforeTick)))
+check("passive income is not lifetime earnings", tycoonProfile.stats.lifetimeEarnings == lifetimeBefore)
+check("passive income is tracked separately", tycoonProfile.stats.passiveEarned > 0)
+
+-- Method tiers are gated on rank and unlocked in order.
+tycoonProfile.credits = 100000000
+local skipped = OperationManager.setMethod(tycoon, "franchise")
+check("method tiers cannot be skipped", skipped == false)
+local stepped = OperationManager.setMethod(tycoon, "warm_lists")
+check("the next method tier unlocks", stepped == true and tycoonProfile.operation.method == "warm_lists")
+check("an unlocked method is remembered", tycoonProfile.operation.unlockedMethods.warm_lists == true)
+
+-- Tradecraft that needs a higher method must refuse.
+local tooEarly = OperationManager.buyTradecraft(tycoon, "compliance_theatre")
+check("tradecraft respects its method requirement", tooEarly == false)
+
+-- A more sophisticated operation must pay more per call.
+local baseline = Operation.summarise(Operation.defaultState()).incomeMul
+local upgraded = Operation.summarise(tycoonProfile.operation).incomeMul
+check("a better operation multiplies call pay", upgraded > baseline,
+	string.format("x%.2f -> x%.2f", baseline, upgraded))
+
+print("")
+print("Police and raids")
+
+-- Laying low halts income and accelerates cooling.
+tycoonProfile.operation.heat = 50
+local laidLow = OperationManager.layLow(tycoon)
+local heatBefore = tycoonProfile.operation.heat
+local creditsAtLayLow = tycoonProfile.credits
+OperationManager.step(tycoon, 10)
+check("laying low cools you down fast", laidLow == true and tycoonProfile.operation.heat < heatBefore - 1,
+	string.format("%.1f -> %.1f", heatBefore, tycoonProfile.operation.heat))
+check("laying low stops the income", tycoonProfile.credits == creditsAtLayLow)
+tycoonProfile.operation.layLowUntil = 0
+
+-- A survived raid costs nothing.
+tycoonProfile.operation.heat = 100
+local survivedBeforeCredits = tycoonProfile.credits
+local escapeOutcome = HeatManager.resolveRaid(tycoon, tycoonProfile.operation, { escapeChance = 1, headcount = 4 }, function()
+	return 0
+end)
+check("a survived raid costs nothing", escapeOutcome.escaped == true and tycoonProfile.credits == survivedBeforeCredits)
+check("a survived raid resets the heat", tycoonProfile.operation.heat == Operation.Raid.HeatAfterEscape)
+check("survived raids are counted", tycoonProfile.operation.raidsSurvived == 1)
+
+-- A failed raid takes the noisy staff first and shuts the floor.
+tycoonProfile.operation.staff = { work_experience = 4, caller = 4 }
+tycoonProfile.operation.heat = 100
+local fined = 0
+local raidOutcome = HeatManager.resolveRaid(tycoon, tycoonProfile.operation, { escapeChance = 0, headcount = 8 }, function(fraction)
+	fined = math.floor(tycoonProfile.credits * fraction)
+	tycoonProfile.credits -= fined
+	return fined
+end)
+check("a failed raid fines you", raidOutcome.escaped == false and fined > 0, Util.formatNumber(fined) .. " Credits")
+check("a failed raid takes the suspicious staff first",
+	(tycoonProfile.operation.staff.work_experience or 0) < 4 and (tycoonProfile.operation.staff.caller or 0) == 4,
+	string.format("%d interns left, %d callers left", tycoonProfile.operation.staff.work_experience or 0, tycoonProfile.operation.staff.caller or 0))
+check("a failed raid shuts the floor", HeatManager.isShutDown(tycoonProfile.operation))
+check("a shut floor earns nothing", (function()
+	local before = tycoonProfile.credits
+	OperationManager.step(tycoon, 5)
+	return tycoonProfile.credits == before
+end)())
+tycoonProfile.operation.shutdownUntil = 0
+
+-- Calling an actual police station is a very bad idea.
+local heatBeforeCall = tycoonProfile.operation.heat
+HeatManager.add(tycoonProfile.operation, Operation.Heat.PerPoliceCall)
+check("ringing a police station spikes the heat", tycoonProfile.operation.heat > heatBeforeCall + 10)
+
+-- Offline earnings are paid but capped.
+tycoonProfile.operation.heat = 0
+tycoonProfile.operation.shutdownUntil = 0
+tycoonProfile.awaySeconds = 100 * 3600
+local creditsBeforeOffline = tycoonProfile.credits
+local earned, counted = OperationManager.applyOffline(tycoon)
+check("offline earnings are capped", counted == Operation.Offline.CapSeconds,
+	string.format("%d hours counted from %d away", counted / 3600, 100))
+check("offline earnings are paid", earned > 0 and tycoonProfile.credits > creditsBeforeOffline,
+	Util.formatNumber(earned) .. " Credits")
+
+PlayerDataManager.setPassOwned(tycoon, "night_shift", true)
+tycoonProfile.awaySeconds = 100 * 3600
+local _, longerCount = OperationManager.applyOffline(tycoon)
+check("the Night Shift pass raises the cap", longerCount == Operation.Offline.PassCapSeconds,
+	string.format("%d hours", longerCount / 3600))
+
+--------------------------------------------------------------------------------
 -- Premium mechanics
 --------------------------------------------------------------------------------
 
@@ -473,7 +708,6 @@ check("per-difficulty wins are recorded", recorded == (outcomes.success or 0),
 	recorded .. " recorded vs " .. tostring(outcomes.success) .. " observed")
 
 -- Game pass effects fold into the same bonus table the desk upgrades use.
-local Upgrades = require(sharedFolder.Upgrades)
 local plainBonuses = Upgrades.aggregate({})
 check("no pass means no multiplier", plainBonuses.rewardMul == 1, "x" .. tostring(plainBonuses.rewardMul))
 

@@ -430,6 +430,7 @@ end
 local LEADERBOARD_SPECS = {
 	{ name = "LifetimeEarnings", title = "TOP LIFETIME EARNINGS", cframe = CFrame.new(25, 9, -58), size = Vector3.new(16, 12, 0.6), face = Enum.NormalId.Front },
 	{ name = "SuccessfulCalls", title = "MOST SUCCESSFUL CALLS", cframe = CFrame.new(45, 9, -58), size = Vector3.new(16, 12, 0.6), face = Enum.NormalId.Front },
+	{ name = "Board_Operation", title = "BIGGEST OPERATIONS", cframe = CFrame.new(-30, 9, -58), size = Vector3.new(16, 12, 0.6), face = Enum.NormalId.Front },
 	{ name = "Board_Easy", title = "EASY - MOST WINS", cframe = CFrame.new(69, 9, -40), size = Vector3.new(0.6, 11, 15), face = Enum.NormalId.Left },
 	{ name = "Board_Normal", title = "NORMAL - MOST WINS", cframe = CFrame.new(69, 9, -20), size = Vector3.new(0.6, 11, 15), face = Enum.NormalId.Left },
 	{ name = "Board_Hard", title = "HARD - MOST WINS", cframe = CFrame.new(69, 9, 0), size = Vector3.new(0.6, 11, 15), face = Enum.NormalId.Left },
@@ -485,6 +486,94 @@ local function buildLeaderboards(parent: Instance)
 end
 
 --------------------------------------------------------------------------------
+-- Raid visuals. A raid belongs to one player, but the whole server gets to
+-- watch the car turn up outside, which is half the fun of it.
+--------------------------------------------------------------------------------
+
+local raidModel: Model? = nil
+local raidLight: PointLight? = nil
+
+function EnvironmentBuilder.showRaid(playerName: string, seconds: number)
+	local root = Workspace:FindFirstChild(ROOT_NAME)
+	if not root then
+		return
+	end
+	if raidModel then
+		raidModel:Destroy()
+		raidModel = nil
+	end
+
+	local model = Instance.new("Model")
+	model.Name = "PoliceRaid"
+
+	part({
+		Size = Vector3.new(6, 3, 12),
+		CFrame = CFrame.new(-14, 1.6, -52),
+		Color = Color3.fromRGB(235, 235, 240),
+		Parent = model,
+	})
+	part({
+		Size = Vector3.new(5.4, 2.2, 5),
+		CFrame = CFrame.new(-14, 4.2, -51),
+		Color = Color3.fromRGB(60, 64, 76),
+		Transparency = 0.35,
+		Parent = model,
+	})
+	part({
+		Size = Vector3.new(6.2, 0.8, 3),
+		CFrame = CFrame.new(-14, 1.6, -52),
+		Color = Color3.fromRGB(40, 90, 200),
+		Parent = model,
+	})
+	for _, offset in ipairs({ Vector3.new(-2.6, -1.2, -4), Vector3.new(2.6, -1.2, -4), Vector3.new(-2.6, -1.2, 4), Vector3.new(2.6, -1.2, 4) }) do
+		part({
+			Size = Vector3.new(1, 2, 2),
+			CFrame = CFrame.new(-14 + offset.X, 1.6 + offset.Y, -52 + offset.Z),
+			Color = Color3.fromRGB(24, 24, 28),
+			Parent = model,
+		})
+	end
+
+	local bar = part({
+		Size = Vector3.new(4, 0.6, 1),
+		CFrame = CFrame.new(-14, 5.6, -51),
+		Color = Color3.fromRGB(200, 40, 40),
+		Material = Enum.Material.Neon,
+		Parent = model,
+		Name = "LightBar",
+	})
+	local light = Instance.new("PointLight")
+	light.Brightness = 6
+	light.Range = 40
+	light.Color = Color3.fromRGB(80, 120, 255)
+	light.Parent = bar
+	raidLight = light
+
+	local sign = part({
+		Size = Vector3.new(12, 3, 0.4),
+		CFrame = CFrame.new(-14, 9, -52),
+		Color = Color3.fromRGB(24, 26, 34),
+		Parent = model,
+	})
+	label(sign, "RAID IN PROGRESS\n" .. playerName, Enum.NormalId.Front, Color3.fromRGB(240, 120, 120))
+
+	model.Parent = root
+	raidModel = model
+
+	task.delay(seconds, function()
+		if raidModel == model then
+			model:Destroy()
+			raidModel = nil
+			raidLight = nil
+		end
+	end)
+end
+
+function EnvironmentBuilder.raidActive(): boolean
+	return raidModel ~= nil
+end
+
+--------------------------------------------------------------------------------
 -- Employee animation loop
 --------------------------------------------------------------------------------
 
@@ -516,6 +605,13 @@ end
 
 local function animateEmployees(dt: number)
 	local now = os.clock()
+
+	if raidLight and raidLight.Parent then
+		raidLight.Color = (math.floor(now * 3) % 2 == 0)
+			and Color3.fromRGB(80, 120, 255)
+			or Color3.fromRGB(255, 80, 80)
+	end
+
 	for _, employee in ipairs(employees) do
 		employee.stateTimer -= dt
 		if employee.stateTimer <= 0 then
@@ -573,6 +669,8 @@ function EnvironmentBuilder.build()
 		existing:Destroy()
 	end
 	table.clear(employees)
+	raidModel = nil
+	raidLight = nil
 
 	local root = Instance.new("Model")
 	root.Name = ROOT_NAME

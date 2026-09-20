@@ -31,7 +31,7 @@ If you use [Rojo](https://rojo.space), skip to [Rojo](#rojo) at the bottom —
 
 ## Step 1 — Shared modules
 
-**Type:** ModuleScript (twelve of them)
+**Type:** ModuleScript (thirteen of them)
 **Location:** `ReplicatedStorage` → create a **Folder** named `MacrosoftShared`,
 then put all eleven inside it.
 
@@ -49,8 +49,9 @@ then put all eleven inside it.
 | `Achievements` | `src/shared/Achievements.luau` |
 | `Difficulty` | `src/shared/Difficulty.luau` |
 | `Products` | `src/shared/Products.luau` |
+| `Operation` | `src/shared/Operation.luau` |
 
-That is twelve modules. The names must match exactly — every other script
+That is thirteen modules. The names must match exactly — every other script
 requires them by name.
 
 **Test it.** Open the Studio Command Bar and run:
@@ -66,9 +67,9 @@ Expect `25 56 14`. Any error here is a missing or misnamed module.
 
 ## Step 2 — Server modules
 
-**Type:** ModuleScript (twelve of them)
+**Type:** ModuleScript (fourteen of them)
 **Location:** `ServerScriptService` → create a **Folder** named
-`MacrosoftServer`, then put all twelve inside it. They find each other through
+`MacrosoftServer`, then put all fourteen inside it. They find each other through
 `script.Parent`, so they must be siblings.
 
 | ModuleScript name | Source file |
@@ -85,6 +86,8 @@ Expect `25 56 14`. Any error here is a missing or misnamed module.
 | `LeaderboardManager` | `src/server/LeaderboardManager.luau` |
 | `MonetisationManager` | `src/server/MonetisationManager.luau` |
 | `CosmeticsManager` | `src/server/CosmeticsManager.luau` |
+| `OperationManager` | `src/server/OperationManager.luau` |
+| `HeatManager` | `src/server/HeatManager.luau` |
 
 Do **not** add the entry-point Script yet — that is step 4.
 
@@ -120,9 +123,9 @@ upgrade kiosk, signage and a `SpawnLocation`. The desk at the front-left is
 named `PlayerWorkstation` and carries a `ProximityPrompt` called
 `WorkstationPrompt`.
 
-Check `workspace.CallCentre.Leaderboards` has **seven** boards: `LifetimeEarnings`
-and `SuccessfulCalls` on the back wall, and `Board_Easy` through
-`Board_Nightmare` down the right-hand wall. Inside the manager's office there is
+Check `workspace.CallCentre.Leaderboards` has **eight** boards: `LifetimeEarnings`,
+`SuccessfulCalls` and `Board_Operation` on the back wall, and `Board_Easy`
+through `Board_Nightmare` down the right-hand wall. Inside the manager's office there is
 a second desk named `ExecutiveWorkstation` with an `ExecutivePrompt` — that one
 is gated behind the Corner Office game pass in step 4.
 
@@ -144,19 +147,20 @@ This script calls `Net.init()`, which creates
 
 * RemoteEvents: `StartCall`, `ChooseOption`, `HangUp`, `PurchaseUpgrade`,
   `RequestData`, `SetDifficulty`, `PromptPurchase`, `UseItem`, `SetAlias`,
-  `CallStarted`, `CallUpdated`, `CallEnded`, `DataUpdated`, `Notify`,
-  `AchievementUnlocked`, `RankChanged`
-* RemoteFunctions: `GetData`, `GetCatalog`, `GetStore`
+  `OperationAction`, `CallStarted`, `CallUpdated`, `CallEnded`, `DataUpdated`,
+  `Notify`, `AchievementUnlocked`, `RankChanged`, `OperationUpdated`,
+  `HeatWarning`, `RaidAlert`, `OfflineEarnings`
+* RemoteFunctions: `GetData`, `GetCatalog`, `GetStore`, `GetOperation`
 
 **Test it.** Press Play. The Output window should show:
 
 ```
-[Macrosoft] v1.1.0 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
-[Macrosoft] Robux store: 0 of 11 items have an asset id set. Items without one show as unavailable.
+[Macrosoft] v1.2.0 online - 25 personalities, 56 dialogue situations, 17 random events, 14 upgrades.
+[Macrosoft] Robux store: 0 of 14 items have an asset id set. Items without one show as unavailable.
 ```
 
 The second line is expected until you do step 7. Check that
-`ReplicatedStorage/MacrosoftRemotes` exists with 19 children, and
+`ReplicatedStorage/MacrosoftRemotes` exists with 25 children, and
 that your player has a `leaderstats` folder with `Credits` and `Rank`. Walk to
 the front-left desk and the "Start Call" prompt should appear (pressing it does
 nothing visible yet — the interface is step 5).
@@ -219,7 +223,55 @@ Play a call through and confirm each of these:
 
 ---
 
-## Step 7 — Robux items (optional, do it last)
+## Step 7 — Check the operation (tycoon layer)
+
+Nothing extra to install; `OperationManager` and `HeatManager` came in at step 2
+and the server started them at step 4. This step is just proving it works.
+
+Press Play. Bottom left there is a **THE OPERATION** panel showing the current
+method, net income per second, desks used, and a **Police Heat** meter.
+
+1. **Passive income.** Open **Operation → Staff** and hire a Work Experience
+   Kid (750 Credits). The income line goes to `+1.5 /sec` and your Credits start
+   climbing on their own.
+2. **The desk cap.** Hire until it refuses — the Back Room only has 3 desks.
+   Buy **Premises → Small Office** and it takes more.
+3. **Heat is proportional.** With three interns on Cold Calling the heat line
+   should read a negative rate and say *cooling off*. That is deliberate: a tiny
+   operation draws no attention. Nobody gets raided in their first session.
+4. **Method tiers.** Switch to **Warm Lead Sheets** (needs the rank of Caller
+   and 25,000 Credits). Heat starts climbing and the HUD estimates a time to
+   raid. Note your call payouts go up too — the method multiplier applies to
+   both.
+5. **Security.** Buy a Door Buzzer and a Shredder and watch the heat rate drop
+   and the escape chance in the Operation header go up.
+6. **Warnings and the raid.** To see it quickly without waiting, run this in the
+   command bar while playing (replace the name):
+
+   ```lua
+   local PDM = require(game.ServerScriptService.MacrosoftServer.PlayerDataManager)
+   PDM.get(game.Players.YourName).operation.heat = 96
+   ```
+
+   Within a few seconds you get the final warning, then either *They Found
+   Nothing* or *Raided* — and a police car with your name on it appears outside
+   the front of the building for the whole server to see.
+7. **Lay Low.** Press it on the HUD. Income stops, the heat rate flips strongly
+   negative for three minutes.
+8. **Offline earnings.** Stop the playtest with staff hired, wait a minute or
+   two, and start it again. You should get a *While You Were Out* toast. (The
+   cap is 4 hours, or 24 with the Night Shift pass.)
+
+**Two things that are deliberate, so do not "fix" them:**
+
+* Passive income is credited but never counted as lifetime earnings, so it can
+  never buy rank. Ranks come from calls, and method tiers require ranks.
+* Heat scales with the size of the operation (`Operation.Heat.NoticeIncome`).
+  Removing that scaling makes the first twenty minutes of the game hostile.
+
+---
+
+## Step 8 — Robux items (optional, do it last)
 
 The game runs fine without this. Every item in `src/shared/Products.luau` ships
 with `assetId = 0`, which the store renders as **Unavailable** rather than
@@ -240,12 +292,15 @@ To turn an item on:
 | Corner Office | Game Pass | 149 R$ |
 | Platinum Headset | Game Pass | 79 R$ |
 | Alias Licence | Game Pass | 99 R$ |
+| Night Shift Licence | Game Pass | 149 R$ |
 | Coffee Refill | Developer Product | 25 R$ |
 | Supervisor Takeover | Developer Product | 35 R$ |
 | Warm Lead | Developer Product | 45 R$ |
 | Petty Cash | Developer Product | 49 R$ |
 | Bonus Payslip | Developer Product | 199 R$ |
 | Double Shift | Developer Product | 99 R$ |
+| Instant Payslip | Developer Product | 79 R$ |
+| Suspiciously Expensive Lawyer | Developer Product | 99 R$ |
 
 Prices are a starting point, not a rule — `suggestedRobux` is only what the
 store UI prints under the button. The real price is whatever you set on the
@@ -273,6 +328,12 @@ Dashboard.
   "simplify" that.
 * Bought Credits are granted with `countAsEarnings = false`. They buy desk
   upgrades but never rank, the earnings board, or the wealth achievement.
+  Passive income from the tycoon layer is treated the same way.
+* The Suspiciously Expensive Lawyer clears police heat, which is the one paid
+  item that touches a core system. It is a consumable rather than a pass on
+  purpose: buying it once must not remove the tension permanently. If you would
+  rather nothing paid touches heat at all, delete that one entry from
+  `Products.DeveloperProducts` — nothing else depends on it.
 * No paid item reveals anything about the caller. The headless tests assert
   this — see `no paid item sells information about the caller` in
   `tests/simulate.luau`.
@@ -326,6 +387,10 @@ you want to strip it back.
 * **New interruption:** add an entry to `RandomEvents.List`.
 * **New upgrade / rank / achievement:** add an entry to the matching list module.
 
+* **New method / staff tier / security item:** add an entry to the matching list
+  in `Operation.luau`. Keep method entries to a joke and two numbers — an income
+  multiplier and a heat rate. They must never describe how anything is actually
+  done, and `tests/simulate.luau` asserts the ladders keep climbing.
 * **New paid item:** add an entry to `Products.GamePasses` (permanent, folds its
   `effects` into the same bonus table the desk upgrades use) or
   `Products.DeveloperProducts` (consumable, with a `grant.kind` of `credits`,
@@ -347,6 +412,16 @@ All in `Config.Call`:
 | `ReassureTrust` / `ReassureAmount` | How much a well-judged line calms a caller |
 | `ProgressPerStage` | How many situations a stage takes |
 | `PatienceTickSeconds` | How fast patience drains with time |
+
+And in `Operation.Heat`:
+
+| Key | Effect |
+| --- | --- |
+| `BaseDecayPerSecond` | How fast heat bleeds off with no security |
+| `NoticeIncome` | Net income per second at which you draw full police attention |
+| `MinNoticeAboveTier1` | Floor on that scaling once you leave Cold Calling |
+| `LayLowDecayMultiplier` / `LayLowSeconds` | The Lay Low lever |
+| `PerPoliceCall` | Heat for ringing an actual police station |
 
 After changing any of them, re-run `./tests/run.sh` — it asserts the difficulty
 curve still descends and that every winnable caller is still winnable.

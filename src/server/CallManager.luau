@@ -12,6 +12,7 @@ local Difficulty = require(Shared.Difficulty)
 local Ranks = require(Shared.Ranks)
 local Net = require(Shared.Net)
 local Products = require(Shared.Products)
+local Operation = require(Shared.Operation)
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local NPCGenerator = require(script.Parent.NPCGenerator)
@@ -20,6 +21,7 @@ local DialogueManager = require(script.Parent.DialogueManager)
 local RandomEventManager = require(script.Parent.RandomEventManager)
 local RewardManager = require(script.Parent.RewardManager)
 local AchievementManager = require(script.Parent.AchievementManager)
+local HeatManager = require(script.Parent.HeatManager)
 
 local CallManager = {}
 
@@ -228,6 +230,25 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 	}
 
 	local reward, breakdown = RewardManager.award(player, result)
+
+	-- Every call leaves a trace. Ringing an actual police station leaves rather
+	-- more of one.
+	local profile = PlayerDataManager.get(player)
+	if profile and profile.operation then
+		local heat = 0
+		if state.npc.personalityId == "police_desk" then
+			heat += Operation.Heat.PerPoliceCall
+		end
+		if outcome == "success" then
+			heat += Operation.Heat.PerSuccessfulCall
+		elseif outcome == "exposed" then
+			heat += Operation.Heat.PerExposedCall
+		end
+		if heat > 0 then
+			HeatManager.add(profile.operation, heat)
+		end
+	end
+
 	local unlocked = AchievementManager.evaluate(player, result)
 
 	local achievementViews = {}

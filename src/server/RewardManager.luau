@@ -7,6 +7,7 @@ local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local Ranks = require(Shared.Ranks)
 local Difficulty = require(Shared.Difficulty)
+local Operation = require(Shared.Operation)
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
 
@@ -61,13 +62,26 @@ function RewardManager.calculate(player: Player, result)
 
 	total = base * (1 + bonusMult)
 
-	-- Multipliers from difficulty, rank and upgrades.
-	local multipliers = level.rewardMul * rank.rewardMul * (bonuses.rewardMul or 1)
+	-- A more sophisticated operation makes every call worth more. This is what
+	-- keeps the call game relevant once the tycoon layer is running.
+	local operationMul = 1
+	if data and data.operation then
+		operationMul = Operation.summarise(data.operation).incomeMul
+	end
+
+	-- Multipliers from difficulty, rank, upgrades and the operation.
+	local multipliers = level.rewardMul * rank.rewardMul * (bonuses.rewardMul or 1) * operationMul
 	local beforeMultipliers = total
 	total = math.floor(total * multipliers)
 	if total ~= math.floor(beforeMultipliers) then
 		table.insert(breakdown, {
-			label = string.format("Difficulty x%.2f / Rank x%.2f / Desk x%.2f", level.rewardMul, rank.rewardMul, bonuses.rewardMul or 1),
+			label = string.format(
+				"Difficulty x%.2f / Rank x%.2f / Desk x%.2f / Operation x%.2f",
+				level.rewardMul,
+				rank.rewardMul,
+				bonuses.rewardMul or 1,
+				operationMul
+			),
 			amount = total - math.floor(beforeMultipliers),
 		})
 	end

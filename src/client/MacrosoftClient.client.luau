@@ -24,6 +24,7 @@ local state = {
 	typing = nil,
 	lastView = nil,
 	store = nil,
+	operation = nil,
 }
 
 --------------------------------------------------------------------------------
@@ -35,6 +36,7 @@ local state = {
 -- defined further down.
 local renderItemRow
 local refreshStore
+local renderOperation
 
 local function toast(title: string, body: string, kind: string?)
 	local colour = T.Accent
@@ -614,6 +616,357 @@ function renderItemRow()
 	end
 end
 
+local function formatRate(value: number): string
+	if value >= 100 then
+		return Util.formatNumber(math.floor(value))
+	end
+	return string.format("%.1f", value)
+end
+
+local function renderOperationHud()
+	local hud = ui.operation.hud
+	local view = state.operation
+	if not view then
+		return
+	end
+
+	local method
+	for _, entry in ipairs(view.methods) do
+		if entry.active then
+			method = entry
+		end
+	end
+	hud.method.Text = method and method.name or "Cold Calling"
+
+	local shutdown = view.shutdownRemaining or 0
+	local layLow = view.layLowRemaining or 0
+	if shutdown > 0 then
+		hud.income.Text = "SHUT DOWN " .. Util.formatTime(shutdown)
+		hud.income.TextColor3 = T.Danger
+	elseif layLow > 0 then
+		hud.income.Text = "LYING LOW " .. Util.formatTime(layLow)
+		hud.income.TextColor3 = T.Patience
+	else
+		hud.income.Text = "+" .. formatRate(view.summary.netIncome) .. " /sec"
+		hud.income.TextColor3 = T.Success
+	end
+
+	hud.staff.Text = string.format("%d / %d desks", view.summary.headcount, view.summary.deskCap)
+
+	UIKit.setMeter(hud.heat, {
+		mode = "full",
+		label = string.format("%d / %d", math.floor(view.heat), view.heatMax),
+		ratio = view.heat / view.heatMax,
+	})
+
+	local rate = view.summary.heatRate
+	if layLow > 0 then
+		rate = -(view.summary.heatDecay * 8)
+	end
+	if rate > 0 then
+		local seconds = (view.heatMax - view.heat) / rate
+		hud.heatRate.Text = string.format("+%.2f/s - raid in %s", rate, Util.formatTime(seconds))
+		hud.heatRate.TextColor3 = T.Suspicion
+	else
+		hud.heatRate.Text = string.format("%.2f/s - cooling off", rate)
+		hud.heatRate.TextColor3 = T.Success
+	end
+
+	hud.layLow.Active = layLow <= 0 and shutdown <= 0
+	hud.layLow.BackgroundColor3 = hud.layLow.Active and T.PanelLight or T.Background
+end
+
+function renderOperation()
+	renderOperationHud()
+
+	for _, child in ipairs(ui.operation.body:GetChildren()) do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	local view = state.operation
+	if not view then
+		return
+	end
+
+	local order = 0
+	local function nextOrder()
+		order += 1
+		return order
+	end
+
+	ui.operation.summary.Text = string.format(
+		"+%s/sec net  -  %d staff  -  security %d  -  escape chance %d%%  -  offline cap %dh",
+		formatRate(view.summary.netIncome),
+		view.summary.headcount,
+		view.summary.securityRating,
+		math.floor(view.summary.escapeChance * 100),
+		math.floor(view.summary.offlineCapSeconds / 3600)
+	)
+
+	local function heading(text: string, subtitle: string?)
+		UIKit.label({
+			Text = text,
+			Font = Enum.Font.GothamBold,
+			TextSize = 17,
+			TextColor3 = T.Accent,
+			Size = UDim2.new(1, 0, 0, 24),
+			LayoutOrder = nextOrder(),
+			Parent = ui.operation.body,
+		})
+		if subtitle then
+			UIKit.label({
+				Text = subtitle,
+				TextSize = 12,
+				TextColor3 = T.SubText,
+				TextWrapped = true,
+				Size = UDim2.new(1, 0, 0, 18),
+				LayoutOrder = nextOrder(),
+				Parent = ui.operation.body,
+			})
+		end
+	end
+
+	-- One row shape reused by every section.
+	local function row(opts)
+		local card = UIKit.panel({
+			Size = UDim2.new(1, -8, 0, opts.height or 74),
+			BackgroundColor3 = T.PanelLight,
+			LayoutOrder = nextOrder(),
+			Parent = ui.operation.body,
+		})
+		UIKit.padding(12).Parent = card
+		UIKit.stroke(opts.strokeColour or T.Panel, 2).Parent = card
+
+		UIKit.label({
+			Text = opts.title,
+			Font = Enum.Font.GothamBold,
+			TextSize = 16,
+			TextColor3 = opts.titleColour or T.Text,
+			Size = UDim2.new(1, -230, 0, 20),
+			Parent = card,
+		})
+		UIKit.label({
+			Text = opts.blurb or "",
+			TextSize = 12,
+			TextColor3 = T.SubText,
+			TextWrapped = true,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			Position = UDim2.new(0, 0, 0, 21),
+			Size = UDim2.new(1, -230, 0, 30),
+			Parent = card,
+		})
+		if opts.stats then
+			UIKit.label({
+				Text = opts.stats,
+				TextSize = 12,
+				TextColor3 = T.Accent,
+				TextWrapped = true,
+				Position = UDim2.new(0, 0, 0, 52),
+				Size = UDim2.new(1, -230, 0, 16),
+				Parent = card,
+			})
+		end
+		return card
+	end
+
+	local function actionButton(card, opts)
+		local button = UIKit.button({
+			Text = opts.text,
+			Font = Enum.Font.GothamBold,
+			TextSize = 14,
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, opts.offsetX or 0, 0.5, 0),
+			Size = UDim2.new(0, opts.width or 150, 0, 38),
+			BackgroundColor3 = opts.colour or T.Accent,
+			TextColor3 = opts.textColour or T.Text,
+			Parent = card,
+		})
+		button.Active = opts.enabled ~= false
+		if not button.Active then
+			button.BackgroundColor3 = T.Background
+			button.TextColor3 = T.SubText
+		end
+		button.MouseButton1Click:Connect(function()
+			if not button.Active then
+				if opts.disabledReason then
+					toast("Not Yet", opts.disabledReason, "warn")
+				end
+				return
+			end
+			opts.onClick()
+		end)
+		return button
+	end
+
+	local function act(action: string, a: string?, b: number?)
+		Net.event("OperationAction"):FireServer(action, a, b)
+	end
+
+	----------------------------------------------------------------------------
+	heading("Method", "How the operation makes its money. Every step up pays more and draws more attention.")
+	for _, method in ipairs(view.methods) do
+		local card = row({
+			title = string.format("%d. %s", method.index, method.name),
+			titleColour = method.active and T.Success or T.Text,
+			strokeColour = method.active and T.Success or T.Panel,
+			blurb = method.blurb,
+			stats = string.format("income x%.1f  -  heat %.2f/s  -  needs %s", method.incomeMul, method.heatPerSecond, method.requiresRankName),
+		})
+		if method.active then
+			actionButton(card, { text = "RUNNING", colour = T.Success, enabled = false })
+		elseif method.unlocked then
+			actionButton(card, { text = "SWITCH TO", onClick = function()
+				act("setMethod", method.id)
+			end })
+		else
+			actionButton(card, {
+				text = Util.formatNumber(method.cost) .. " Cr",
+				colour = T.Gold,
+				textColour = Color3.fromRGB(30, 26, 12),
+				enabled = method.available,
+				disabledReason = "Unlock the tier below it first, and reach " .. method.requiresRankName .. ".",
+				onClick = function()
+					act("setMethod", method.id)
+				end,
+			})
+		end
+	end
+
+	----------------------------------------------------------------------------
+	heading("Staff", "Passive income, minus wages. The cheap ones draw more attention and are the first out of the window in a raid.")
+	for _, employee in ipairs(view.staff) do
+		local card = row({
+			title = string.format("%s  x%d", employee.name, employee.held),
+			blurb = employee.blurb,
+			stats = string.format(
+				"%s+%.0f/s each, wage %.0f/s, heat %.3f/s",
+				employee.suspicious and "SUSPICIOUS - " or "",
+				employee.incomePerSecond,
+				employee.wagePerSecond,
+				employee.heatPerSecond
+			),
+			height = 80,
+		})
+		actionButton(card, {
+			text = "HIRE  " .. Util.formatNumber(employee.hireCost),
+			width = 150,
+			onClick = function()
+				act("hire", employee.id, 1)
+			end,
+		})
+		actionButton(card, {
+			text = "FIRE",
+			width = 64,
+			offsetX = -156,
+			colour = T.Danger,
+			enabled = employee.held > 0,
+			onClick = function()
+				act("fire", employee.id, 1)
+			end,
+		})
+	end
+
+	----------------------------------------------------------------------------
+	heading("Premises", "More desks, and a multiplier on everything the floor earns.")
+	for _, facility in ipairs(view.facilities) do
+		local card = row({
+			title = string.format("%d. %s", facility.index, facility.name),
+			titleColour = facility.id == view.facility and T.Success or T.Text,
+			strokeColour = facility.id == view.facility and T.Success or T.Panel,
+			blurb = facility.blurb,
+			stats = string.format("%d desks  -  income x%.2f", facility.desks, facility.incomeMul),
+		})
+		if facility.id == view.facility then
+			actionButton(card, { text = "CURRENT", colour = T.Success, enabled = false })
+		elseif facility.owned then
+			actionButton(card, { text = "OUTGROWN", enabled = false })
+		else
+			actionButton(card, {
+				text = Util.formatNumber(facility.cost) .. " Cr",
+				colour = T.Gold,
+				textColour = Color3.fromRGB(30, 26, 12),
+				enabled = facility.available,
+				disabledReason = "Move in one step at a time.",
+				onClick = function()
+					act("buyFacility", facility.id)
+				end,
+			})
+		end
+	end
+
+	----------------------------------------------------------------------------
+	heading("Security", "Slows heat, speeds cooling, and decides how a raid goes.")
+	for _, item in ipairs(view.security) do
+		local card = row({
+			title = item.name,
+			blurb = item.blurb,
+			stats = string.format("heat x%.2f  -  cooling +%.2f/s  -  escape +%d", item.heatMul, item.decayBonus, item.rating),
+			strokeColour = item.owned and T.Success or T.Panel,
+		})
+		actionButton(card, {
+			text = item.owned and "INSTALLED" or (Util.formatNumber(item.cost) .. " Cr"),
+			colour = item.owned and T.Success or T.Gold,
+			textColour = item.owned and T.Text or Color3.fromRGB(30, 26, 12),
+			enabled = not item.owned,
+			onClick = function()
+				act("buySecurity", item.id)
+			end,
+		})
+	end
+
+	----------------------------------------------------------------------------
+	heading("Tradecraft", "Makes whatever you are already doing look less obviously dodgy.")
+	for _, item in ipairs(view.tradecraft) do
+		local card = row({
+			title = item.name,
+			blurb = item.blurb,
+			stats = string.format("heat x%.2f  -  income +%d%%  -  needs %s", item.heatMul, math.floor(item.incomeMul * 100), item.requiresMethodName),
+			strokeColour = item.owned and T.Success or T.Panel,
+		})
+		actionButton(card, {
+			text = item.owned and "TRAINED" or (Util.formatNumber(item.cost) .. " Cr"),
+			colour = item.owned and T.Success or T.Gold,
+			textColour = item.owned and T.Text or Color3.fromRGB(30, 26, 12),
+			enabled = not item.owned,
+			onClick = function()
+				act("buyTradecraft", item.id)
+			end,
+		})
+	end
+
+	----------------------------------------------------------------------------
+	local inventory = state.data and state.data.premium and state.data.premium.inventory or {}
+	local hasOperationItems = false
+	if state.store then
+		for _, product in ipairs(state.store.products) do
+			if product.usableInOperation and (inventory[product.id] or 0) > 0 then
+				hasOperationItems = true
+			end
+		end
+	end
+	if hasOperationItems then
+		heading("In Your Drawer", "Bought items you can use on the operation right now.")
+		for _, product in ipairs(state.store.products) do
+			local held = inventory[product.id] or 0
+			if product.usableInOperation and held > 0 then
+				local card = row({
+					title = string.format("%s  x%d", product.name, held),
+					blurb = product.blurb,
+				})
+				actionButton(card, {
+					text = "USE",
+					colour = T.Gold,
+					textColour = Color3.fromRGB(30, 26, 12),
+					onClick = function()
+						act("useItem", product.id)
+					end,
+				})
+			end
+		end
+	end
+end
+
 local function renderCareer()
 	for _, child in ipairs(ui.career.body:GetChildren()) do
 		if child:IsA("GuiObject") then
@@ -859,6 +1212,17 @@ local function refreshCatalog()
 	end
 end
 
+local function refreshOperation()
+	local ok, view = pcall(function()
+		return Net.func("GetOperation"):InvokeServer()
+	end)
+	if ok and view then
+		state.operation = view
+		renderOperation()
+	end
+	return ok
+end
+
 function refreshStore()
 	local ok, store = pcall(function()
 		return Net.func("GetStore"):InvokeServer()
@@ -875,6 +1239,36 @@ end
 --------------------------------------------------------------------------------
 
 Net.event("DataUpdated").OnClientEvent:Connect(applyData)
+
+Net.event("OperationUpdated").OnClientEvent:Connect(function(view)
+	state.operation = view
+	if ui.operation.frame.Visible then
+		renderOperation()
+	else
+		renderOperationHud()
+	end
+end)
+
+Net.event("HeatWarning").OnClientEvent:Connect(function(warning)
+	toast(warning.title, warning.body, "warn")
+end)
+
+Net.event("RaidAlert").OnClientEvent:Connect(function(outcome)
+	toast(outcome.title, outcome.body, outcome.escaped and "success" or "warn")
+end)
+
+Net.event("OfflineEarnings").OnClientEvent:Connect(function(payload)
+	toast(
+		"While You Were Out",
+		string.format(
+			"The floor kept working for %s and made %s Credits.%s",
+			Util.formatTime(payload.seconds),
+			Util.formatNumber(payload.amount),
+			payload.capped and " (offline cap reached)" or ""
+		),
+		"gold"
+	)
+end)
 
 Net.event("CallStarted").OnClientEvent:Connect(function(view)
 	enterCall(view)
@@ -945,6 +1339,26 @@ for _, button in ipairs(ui.call.choiceButtons) do
 	end)
 end
 
+local function openOperation()
+	task.spawn(function()
+		refreshStore()
+		refreshOperation()
+		ui.operation.frame.Visible = true
+	end)
+end
+
+ui.operation.button.MouseButton1Click:Connect(openOperation)
+ui.operation.hud.open.MouseButton1Click:Connect(openOperation)
+ui.operation.close.MouseButton1Click:Connect(function()
+	ui.operation.frame.Visible = false
+end)
+ui.operation.hud.layLow.MouseButton1Click:Connect(function()
+	if not ui.operation.hud.layLow.Active then
+		return
+	end
+	Net.event("OperationAction"):FireServer("layLow")
+end)
+
 ui.topBar.storeButton.MouseButton1Click:Connect(function()
 	task.spawn(function()
 		refreshStore()
@@ -1005,6 +1419,29 @@ task.spawn(function()
 			end
 		end
 
+		-- The server pushes the operation view every few seconds; between pushes
+		-- the client advances heat and credits itself so the meters move
+		-- smoothly instead of stepping.
+		local view = state.operation
+		if view then
+			local running = (view.shutdownRemaining or 0) <= 0
+			local rate = view.summary.heatRate
+			if (view.layLowRemaining or 0) > 0 then
+				rate = -(view.summary.heatDecay * 8)
+				view.layLowRemaining = math.max(0, view.layLowRemaining - 0.25)
+			end
+			if (view.shutdownRemaining or 0) > 0 then
+				view.shutdownRemaining = math.max(0, view.shutdownRemaining - 0.25)
+				rate = -view.summary.heatDecay
+			end
+			view.heat = math.clamp(view.heat + rate * 0.25, 0, view.heatMax)
+			if running and state.data and (view.layLowRemaining or 0) <= 0 then
+				state.data.credits += view.summary.netIncome * 0.25
+				ui.topBar.credits.Text = Util.formatNumber(state.data.credits) .. " Credits"
+			end
+			renderOperationHud()
+		end
+
 		if state.inCall then
 			state.elapsed += 0.25
 			ui.call.timer.Text = Util.formatTime(state.elapsed)
@@ -1030,6 +1467,7 @@ task.spawn(function()
 	end
 	refreshCatalog()
 	refreshStore()
+	refreshOperation()
 	Net.event("RequestData"):FireServer()
 	toast("Welcome to Macrosoft", "Everything here is fictional satire. Press How To Play for the rules.", "info")
 end)

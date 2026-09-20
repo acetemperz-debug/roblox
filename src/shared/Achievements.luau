@@ -11,6 +11,8 @@
 --   perfect        boolean, no choice increased suspicion
 --   reward         credits awarded
 
+local Operation = require(game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared").Operation)
+
 local Achievements = {}
 
 Achievements.List = {
@@ -193,6 +195,71 @@ Achievements.List = {
 		reward = 500,
 		check = function(data)
 			return (data.stats.failStreak or 0) >= 10
+		end,
+	},
+	{
+		id = "act_natural",
+		name = "Everybody Act Natural",
+		blurb = "Survive a police raid without losing anything.",
+		reward = 1500,
+		check = function(data)
+			return (data.operation and data.operation.raidsSurvived or 0) >= 1
+		end,
+	},
+	{
+		id = "door_off_hinges",
+		name = "That Door Was Load-Bearing",
+		blurb = "Lose a raid. It happens to everyone once.",
+		reward = 500,
+		check = function(data)
+			return (data.operation and data.operation.raidsLost or 0) >= 1
+		end,
+	},
+	{
+		id = "middle_management",
+		name = "Middle Management",
+		blurb = "Have twenty people on the payroll at once.",
+		reward = 2000,
+		check = function(data)
+			local total = 0
+			for _, count in pairs(data.operation and data.operation.staff or {}) do
+				total += count
+			end
+			return total >= 20
+		end,
+	},
+	{
+		id = "sleeps_at_the_office",
+		name = "It Runs Itself",
+		blurb = "Earn 1,000,000 Credits in passive income.",
+		reward = 5000,
+		check = function(data)
+			return (data.stats.passiveEarned or 0) >= 1000000
+		end,
+	},
+	{
+		id = "gone_legitimate",
+		name = "Almost Legitimate",
+		blurb = "Own every security upgrade at once.",
+		reward = 4000,
+		check = function(data)
+			local security = data.operation and data.operation.security or {}
+			local owned = 0
+			for _, has in pairs(security) do
+				if has then
+					owned += 1
+				end
+			end
+			return owned >= #Operation.Security
+		end,
+	},
+	{
+		id = "the_franchise",
+		name = "Franchise Owner",
+		blurb = "Run the top method tier.",
+		reward = 10000,
+		check = function(data)
+			return data.operation ~= nil and data.operation.method == "franchise"
 		end,
 	},
 	{

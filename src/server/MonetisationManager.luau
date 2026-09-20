@@ -18,6 +18,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShare
 local Products = require(Shared.Products)
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
+local OperationManager = require(script.Parent.OperationManager)
 
 local MonetisationManager = {}
 
@@ -114,6 +115,18 @@ local function grant(player: Player, product): (boolean, string)
 	elseif kind == "boost" then
 		PlayerDataManager.addBoost(player, product.grant.seconds, product.grant.multiplier)
 		return true, string.format("Double Credits for %d minutes.", math.floor(product.grant.seconds / 60))
+	elseif kind == "payslip" then
+		local summary = OperationManager.summary(player)
+		local seconds = product.grant.hours * 3600
+		local amount = math.floor((summary and summary.netIncome or 0) * seconds)
+		if amount <= 0 then
+			-- Nothing to pay out yet; bank it as a consumable so the purchase is
+			-- never simply eaten.
+			PlayerDataManager.addItem(player, product.id, 1)
+			return true, "You have no staff yet, so this is saved in your drawer for later."
+		end
+		OperationManager.creditPassive(player, amount)
+		return true, string.format("%d hours of passive income collected.", product.grant.hours)
 	elseif kind == "consumable" then
 		PlayerDataManager.addItem(player, product.id, product.grant.amount or 1)
 		return true, product.name .. " added to your desk drawer."
@@ -202,6 +215,7 @@ function MonetisationManager.catalog(player: Player)
 			configured = Products.isConfigured(product),
 			owned = data ~= nil and (data.premium.inventory[product.id] or 0) or 0,
 			usableInCall = product.usableInCall == true,
+			usableInOperation = product.usableInOperation == true,
 			useLabel = product.useLabel,
 		})
 	end

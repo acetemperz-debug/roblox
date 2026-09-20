@@ -20,6 +20,7 @@ local EVENTS = {
 	"PromptPurchase", -- (kind: "pass"|"product", itemId: string)
 	"UseItem", -- (productId: string)
 	"SetAlias", -- (alias: string)
+	"OperationAction", -- (action: string, a: any?, b: any?)
 
 	-- Server -> Client
 	"CallStarted", -- (callView)
@@ -29,12 +30,17 @@ local EVENTS = {
 	"Notify", -- ({title, body, kind})
 	"AchievementUnlocked", -- (achievementView)
 	"RankChanged", -- ({from, to})
+	"OperationUpdated", -- (operationView)
+	"HeatWarning", -- ({title, body, at})
+	"RaidAlert", -- (outcome)
+	"OfflineEarnings", -- ({amount, seconds, capped})
 }
 
 local FUNCTIONS = {
 	"GetData", -- () -> publicData
 	"GetCatalog", -- () -> {upgrades, ranks, achievements, difficulties}
 	"GetStore", -- () -> {passes, products}
+	"GetOperation", -- () -> operationView
 }
 
 local Net = {}

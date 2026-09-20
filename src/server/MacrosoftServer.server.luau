@@ -17,6 +17,7 @@ local DialogueLibrary = require(Shared.DialogueLibrary)
 local RandomEvents = require(Shared.RandomEvents)
 local Personalities = require(Shared.Personalities)
 local Products = require(Shared.Products)
+local Operation = require(Shared.Operation)
 
 -- Remotes must exist before any client script requires Net.
 Net.init()
@@ -30,6 +31,8 @@ local EnvironmentBuilder = require(Modules.EnvironmentBuilder)
 local LeaderboardManager = require(Modules.LeaderboardManager)
 local MonetisationManager = require(Modules.MonetisationManager)
 local CosmeticsManager = require(Modules.CosmeticsManager)
+local OperationManager = require(Modules.OperationManager)
+local HeatManager = require(Modules.HeatManager)
 
 --------------------------------------------------------------------------------
 -- World
@@ -89,6 +92,7 @@ CallManager.beginRuntime()
 LeaderboardManager.start()
 MonetisationManager.start()
 CosmeticsManager.start()
+OperationManager.start()
 
 -- leaderstats so Credits and Rank appear on the Roblox player list.
 local function setupLeaderstats(player: Player, view)
@@ -145,6 +149,30 @@ end)
 
 AchievementManager.Unlocked.Event:Connect(function(player, achievement)
 	Net.event("AchievementUnlocked"):FireClient(player, achievement)
+end)
+
+OperationManager.Changed.Event:Connect(function(player, view)
+	Net.event("OperationUpdated"):FireClient(player, view)
+end)
+
+OperationManager.OfflineEarnings.Event:Connect(function(player, amount, seconds)
+	Net.event("OfflineEarnings"):FireClient(player, {
+		amount = amount,
+		seconds = seconds,
+		capped = seconds >= (OperationManager.summary(player) or {}).offlineCapSeconds,
+	})
+end)
+
+HeatManager.Warned.Event:Connect(function(player, warning)
+	Net.event("HeatWarning"):FireClient(player, warning)
+end)
+
+OperationManager.Raided.Event:Connect(function(player, outcome)
+	Net.event("RaidAlert"):FireClient(player, outcome)
+	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(player))
+	-- Everyone gets to watch the car turn up.
+	EnvironmentBuilder.showRaid(player.DisplayName, outcome.escaped and 12 or Operation.Raid.ShutdownSeconds)
+	AchievementManager.evaluate(player, nil)
 end)
 
 MonetisationManager.Granted.Event:Connect(function(player, product, message)
@@ -313,12 +341,71 @@ Net.event("SetAlias").OnServerEvent:Connect(function(player, alias)
 	})
 end)
 
+local OPERATION_ACTIONS = {
+	setMethod = function(player, a)
+		return OperationManager.setMethod(player, a)
+	end,
+	buyFacility = function(player, a)
+		return OperationManager.buyFacility(player, a)
+	end,
+	buySecurity = function(player, a)
+		return OperationManager.buySecurity(player, a)
+	end,
+	buyTradecraft = function(player, a)
+		return OperationManager.buyTradecraft(player, a)
+	end,
+	hire = function(player, a, b)
+		return OperationManager.hire(player, a, b)
+	end,
+	fire = function(player, a, b)
+		return OperationManager.fire(player, a, b)
+	end,
+	layLow = function(player)
+		return OperationManager.layLow(player)
+	end,
+	useItem = function(player, a)
+		return OperationManager.useItem(player, a)
+	end,
+}
+
+Net.event("OperationAction").OnServerEvent:Connect(function(player, action, a, b)
+	if typeof(action) ~= "string" then
+		return
+	end
+	local handler = OPERATION_ACTIONS[action]
+	if not handler then
+		return
+	end
+	if a ~= nil and typeof(a) ~= "string" then
+		return
+	end
+	if b ~= nil and typeof(b) ~= "number" then
+		return
+	end
+
+	local ok, message = handler(player, a, b)
+	if message and message ~= "" then
+		Net.event("Notify"):FireClient(player, {
+			title = ok and "Operation" or "Cannot Do That",
+			body = message,
+			kind = ok and "success" or "warn",
+		})
+	end
+	if ok then
+		AchievementManager.evaluate(player, nil)
+	end
+end)
+
 Net.event("RequestData").OnServerEvent:Connect(function(player)
 	PlayerDataManager.notify(player)
 end)
 
 Net.func("GetData").OnServerInvoke = function(player)
 	return PlayerDataManager.publicView(player)
+end
+
+Net.func("GetOperation").OnServerInvoke = function(player)
+	return OperationManager.view(player)
 end
 
 Net.func("GetStore").OnServerInvoke = function(player)

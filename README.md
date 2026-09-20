@@ -36,6 +36,9 @@ and used on a real person. Do not do any of this to anybody.
 | Products | `src/shared/Products.luau` | Robux catalogue: 5 passes, 6 developer products |
 | MonetisationManager | `src/server/MonetisationManager.luau` | Ownership caching, ProcessReceipt, grants |
 | CosmeticsManager | `src/server/CosmeticsManager.luau` | Overhead titles and the Platinum Headset |
+| Operation | `src/shared/Operation.luau` | Tycoon data: 7 methods, 7 staff tiers, 7 premises, 7 security, 7 tradecraft |
+| OperationManager | `src/server/OperationManager.luau` | Purchases, passive income, offline earnings, the tick |
+| HeatManager | `src/server/HeatManager.luau` | Police pressure, warnings and raids |
 | EnvironmentBuilder | `src/server/EnvironmentBuilder.luau` | Builds the whole call centre from parts |
 | LeaderboardManager | `src/server/LeaderboardManager.luau` | OrderedDataStore wall boards |
 | MacrosoftServer | `src/server/MacrosoftServer.server.luau` | Server entry point |
@@ -76,11 +79,67 @@ difficulty curve behaves. Current balance, optimal play:
 Nightmare is that low on purpose: most of its callers (a rival call centre, a
 police front desk, a scambaiter) are written so they can never be fooled.
 
+## The operation (tycoon layer)
+
+Calls are the skill game. The operation is what you build with the proceeds, and
+it runs whether you are on a call or not.
+
+**Methods** are the ladder of how the fictional operation makes money. Each step
+multiplies income and multiplies the attention you draw:
+
+| # | Method | Income | Heat | Unlocks at |
+| --- | --- | --- | --- | --- |
+| 1 | Cold Calling | x1.0 | 0.06/s | Intern |
+| 2 | Warm Lead Sheets | x1.7 | 0.14/s | Caller |
+| 3 | Dodgy Links | x2.8 | 0.26/s | Senior Caller |
+| 4 | Popup Farm | x4.5 | 0.42/s | Team Leader |
+| 5 | Fake Refund Portal | x7.0 | 0.62/s | Floor Manager |
+| 6 | Corporate Impersonation Desk | x11.0 | 0.90/s | Operations Manager |
+| 7 | The Franchise | x18.0 | 1.30/s | Call Centre Boss |
+
+Method tiers are gated on **rank**, and rank comes only from calls — so the
+active game is what unlocks the idle game rather than being replaced by it. The
+method multiplier also applies to call payouts, so a bigger operation makes
+every call worth more.
+
+**Staff** earn passively, minus wages. The cheap tiers are marked *suspicious*:
+they generate more heat each, and they are the first ones a raid takes.
+
+**Premises** set the desk cap (3 → 90) and multiply income. **Security** slows
+heat, speeds cooling and improves your odds in a raid. **Tradecraft** (voice
+modulator, charisma training, compliance theatre…) makes whatever you are
+already doing look less obviously dodgy.
+
+### Police heat
+
+Heat rises with the size and sophistication of the operation and falls with
+security and time. Crucially it scales with *notoriety* — a player with three
+interns and a phone generates almost none, so nobody gets raided in their first
+twenty minutes for doing nothing much.
+
+Three warnings fire on the way up (an unmarked car, someone photographing the
+door, two people in matching coats). At 100 the door goes in:
+
+* **Escaped** — heat drops to 25, you lose nothing.
+* **Raided** — 20% of your credits, a quarter of your staff (noisy ones first),
+  and the floor shuts for 60 seconds.
+
+`Lay Low` halts income for three minutes and cools you eight times faster. The
+whole server sees a police car pull up outside with your name on it.
+
+Offline, the floor keeps working at 50% for up to 4 hours (24 with the Night
+Shift pass) and heat only ever bleeds off.
+
+The test suite asserts the shape of this: every tier above the first must be
+*unsustainable bare and survivable kitted*, every ladder must climb, and no
+employee may cost more in wages than they bring in.
+
 ## Leaderboards
 
-Seven global boards, all OrderedDataStore-backed and shared across servers:
+Eight global boards, all OrderedDataStore-backed and shared across servers:
 
-* **Top Lifetime Earnings** and **Most Successful Calls** on the back wall
+* **Top Lifetime Earnings**, **Most Successful Calls** and **Biggest
+  Operations** on the back wall
 * **One board per difficulty** down the right-hand wall, counting wins on that
   difficulty
 
@@ -101,6 +160,7 @@ Creator Dashboard and paste the IDs in.
 | Corner Office | A personal desk inside the glass manager's office |
 | Platinum Headset | Cosmetic headset welded to your character |
 | Alias Licence | Replace "Kevin" with your own technician name in dialogue |
+| Night Shift Licence | Offline earnings cap goes from 4 hours to 24 |
 
 | Developer Product | Effect |
 | --- | --- |
@@ -109,13 +169,17 @@ Creator Dashboard and paste the IDs in.
 | Warm Lead | Next caller rolls one tier friendlier |
 | Petty Cash / Bonus Payslip | 2,500 / 15,000 Credits |
 | Double Shift | 2x Credits for 30 minutes |
+| Instant Payslip | Collect 2 hours of passive income now |
+| Suspiciously Expensive Lawyer | Drops police heat to zero, once |
 
 Three rules the code enforces, and the tests assert:
 
 * **Nothing paid reveals the caller.** Reading the caller is the whole skill on
   Hard and above.
 * **Bought Credits are not earnings.** They can buy desk upgrades but never
-  rank, the earnings board, or the wealth achievement.
+  rank, the earnings board, or the wealth achievement. Passive income from the
+  tycoon layer is treated the same way, so neither Robux nor idling buys rank —
+  only calls do.
 * **Grants are saved before `PurchaseGranted` is returned**, and deduped on
   `PurchaseId`, so a replayed receipt never double-grants and a failed save
   never silently eats a purchase.

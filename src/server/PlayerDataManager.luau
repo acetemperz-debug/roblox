@@ -17,6 +17,7 @@ local Config = require(Shared.Config)
 local Ranks = require(Shared.Ranks)
 local Upgrades = require(Shared.Upgrades)
 local Products = require(Shared.Products)
+local Operation = require(Shared.Operation)
 
 local PlayerDataManager = {}
 
@@ -48,7 +49,11 @@ local function defaultProfile()
 			-- Successful calls per difficulty. These drive the global boards and
 			-- are deliberately immune to any paid reward multiplier.
 			successByDifficulty = {},
+			-- Passive income is tracked separately and never counted as
+			-- lifetime earnings, so the tycoon layer cannot buy rank.
+			passiveEarned = 0,
 		},
+		operation = Operation.defaultState(),
 		settings = {
 			difficulty = "Normal",
 		},
@@ -78,6 +83,24 @@ local function reconcile(profile)
 		profile.premium.passes = profile.premium.passes or {}
 		profile.premium.inventory = profile.premium.inventory or {}
 		profile.premium.receipts = profile.premium.receipts or {}
+	end
+	if typeof(profile.operation) ~= "table" then
+		profile.operation = Operation.defaultState()
+	else
+		local defaults = Operation.defaultState()
+		for key, value in pairs(defaults) do
+			if profile.operation[key] == nil then
+				profile.operation[key] = value
+			end
+		end
+		-- A saved method or facility that no longer exists falls back safely.
+		if not Operation.MethodById[profile.operation.method] then
+			profile.operation.method = Operation.StartingMethod
+		end
+		if not Operation.FacilityById[profile.operation.facility] then
+			profile.operation.facility = Operation.StartingFacility
+		end
+		profile.operation.unlockedMethods[Operation.StartingMethod] = true
 	end
 	local base = defaultProfile()
 	for key, value in pairs(base) do
@@ -140,7 +163,11 @@ function PlayerDataManager.load(player: Player)
 		end)
 		if ok then
 			if typeof(saved) == "table" then
+				local previousSeen = saved.lastSeen
 				profile = reconcile(saved)
+				-- Captured before lastSeen is refreshed below, so the tycoon
+				-- layer can pay out offline earnings.
+				profile.awaySeconds = previousSeen and math.max(0, os.time() - previousSeen) or 0
 			end
 		else
 			-- Could not read. Run in memory only so we never clobber real data.
@@ -201,7 +228,11 @@ end
 -- update fires exactly once per change.
 --------------------------------------------------------------------------------
 
-function PlayerDataManager.addCredits(player: Player, amount: number, countAsEarnings: boolean?)
+-- `silent` skips the client update. Passive income uses it: it ticks every
+-- second, and firing a remote per player per second to move a number the client
+-- is already interpolating is pure waste. OperationManager pushes a real
+-- update every few seconds instead.
+function PlayerDataManager.addCredits(player: Player, amount: number, countAsEarnings: boolean?, silent: boolean?)
 	local profile = profiles[player.UserId]
 	if not profile then
 		return
@@ -214,7 +245,9 @@ function PlayerDataManager.addCredits(player: Player, amount: number, countAsEar
 		end
 	end
 	PlayerDataManager.recalculateRank(player)
-	PlayerDataManager.notify(player)
+	if not silent then
+		PlayerDataManager.notify(player)
+	end
 end
 
 function PlayerDataManager.spendCredits(player: Player, amount: number): boolean
@@ -329,6 +362,11 @@ function PlayerDataManager.publicView(player: Player)
 		settings = profile.settings,
 		bonuses = PlayerDataManager.getBonuses(player),
 		saveDisabled = profile.loadFailed == true,
+		operation = {
+			method = profile.operation.method,
+			facility = profile.operation.facility,
+			heat = profile.operation.heat,
+		},
 		premium = {
 			passes = profile.premium.passes,
 			inventory = profile.premium.inventory,

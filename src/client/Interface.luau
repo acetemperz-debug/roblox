@@ -148,7 +148,7 @@ function Interface.build(): any
 		Name = "Buttons",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.new(0, 450, 0, 34),
+		Size = UDim2.new(0, 560, 0, 34),
 		BackgroundTransparency = 1,
 		Parent = topBar,
 	})
@@ -163,27 +163,30 @@ function Interface.build(): any
 	local function topButton(text: string, order: number)
 		return UIKit.button({
 			Text = text,
-			Size = UDim2.new(0, 104, 1, 0),
+			Size = UDim2.new(0, 106, 1, 0),
 			LayoutOrder = order,
 			BackgroundColor3 = T.PanelLight,
 			Parent = buttonRow,
 		})
 	end
 
-	local shopButton = topButton("Upgrades", 1)
-	local storeButton = topButton("Store", 2)
-	local statsButton = topButton("Career", 3)
-	local helpButton = topButton("How To Play", 4)
+	local operationButton = topButton("Operation", 1)
+	local shopButton = topButton("Upgrades", 2)
+	local storeButton = topButton("Store", 3)
+	local statsButton = topButton("Career", 4)
+	local helpButton = topButton("How To Play", 5)
+	operationButton.BackgroundColor3 = T.AccentDark
 	storeButton.BackgroundColor3 = T.Gold
 	storeButton.TextColor3 = Color3.fromRGB(32, 26, 10)
 
 	----------------------------------------------------------------------------
 	-- Home panel (difficulty + start call)
 	----------------------------------------------------------------------------
+	-- Bottom right, because the operation HUD owns the bottom left.
 	local home = UIKit.panel({
 		Name = "Home",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -24),
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -16, 1, -24),
 		Size = UDim2.new(0, 720, 0, 210),
 		BackgroundTransparency = 0.05,
 		Parent = gui,
@@ -232,6 +235,97 @@ function Interface.build(): any
 		Position = UDim2.new(0, 0, 1, -48),
 		Size = UDim2.new(1, 0, 0, 44),
 		Parent = home,
+	})
+
+	----------------------------------------------------------------------------
+	-- Operation HUD (bottom left, always visible -- heat matters during calls)
+	----------------------------------------------------------------------------
+	local ops = UIKit.panel({
+		Name = "OpsHud",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -24),
+		Size = UDim2.new(0, 300, 0, 172),
+		BackgroundTransparency = 0.05,
+		Parent = gui,
+	})
+	UIKit.stroke(T.PanelLight, 1).Parent = ops
+	UIKit.padding(14).Parent = ops
+
+	UIKit.label({
+		Text = "THE OPERATION",
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextColor3 = T.SubText,
+		Size = UDim2.new(1, 0, 0, 16),
+		Parent = ops,
+	})
+
+	local opsMethod = UIKit.label({
+		Name = "Method",
+		Text = "Cold Calling",
+		Font = Enum.Font.GothamBold,
+		TextSize = 17,
+		Position = UDim2.new(0, 0, 0, 18),
+		Size = UDim2.new(1, 0, 0, 22),
+		Parent = ops,
+	})
+
+	local opsIncome = UIKit.label({
+		Name = "Income",
+		Text = "0 /sec",
+		TextSize = 14,
+		TextColor3 = T.Success,
+		Position = UDim2.new(0, 0, 0, 40),
+		Size = UDim2.new(0.55, 0, 0, 18),
+		Parent = ops,
+	})
+
+	local opsStaff = UIKit.label({
+		Name = "Staff",
+		Text = "0 / 3 desks",
+		TextSize = 14,
+		TextColor3 = T.SubText,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Position = UDim2.new(0.55, 0, 0, 40),
+		Size = UDim2.new(0.45, 0, 0, 18),
+		Parent = ops,
+	})
+
+	local heatMeter = UIKit.meter("Police Heat", T.Suspicion, 1)
+	heatMeter.holder.Position = UDim2.new(0, 0, 0, 62)
+	heatMeter.holder.Size = UDim2.new(1, 0, 0, 40)
+	heatMeter.holder.Parent = ops
+
+	local opsHeatRate = UIKit.label({
+		Name = "HeatRate",
+		Text = "",
+		TextSize = 12,
+		TextColor3 = T.SubText,
+		Position = UDim2.new(0, 0, 0, 102),
+		Size = UDim2.new(1, 0, 0, 16),
+		Parent = ops,
+	})
+
+	local layLowButton = UIKit.button({
+		Name = "LayLow",
+		Text = "LAY LOW",
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+		Position = UDim2.new(0, 0, 0, 122),
+		Size = UDim2.new(0.48, 0, 0, 30),
+		BackgroundColor3 = T.PanelLight,
+		Parent = ops,
+	})
+
+	local opsOpenButton = UIKit.button({
+		Name = "Open",
+		Text = "MANAGE",
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+		Position = UDim2.new(0.52, 0, 0, 122),
+		Size = UDim2.new(0.48, 0, 0, 30),
+		BackgroundColor3 = T.AccentDark,
+		Parent = ops,
 	})
 
 	----------------------------------------------------------------------------
@@ -570,6 +664,23 @@ function Interface.build(): any
 	local career = overlay("Career", "Career")
 	career.frame.Parent = gui
 
+	local operation = overlay("Operation", "The Operation")
+	operation.frame.Parent = gui
+	operation.panel.Size = UDim2.new(0, 820, 0, 580)
+	local operationSummary = UIKit.label({
+		Name = "Summary",
+		Text = "",
+		TextSize = 13,
+		TextColor3 = T.SubText,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -112, 0, 18),
+		Size = UDim2.new(0, 420, 0, 32),
+		TextWrapped = true,
+		ZIndex = 22,
+		Parent = operation.panel,
+	})
+
 	local store = overlay("Store", "Robux Store")
 	store.frame.Parent = gui
 	local storeNote = UIKit.label({
@@ -686,6 +797,23 @@ function Interface.build(): any
 		},
 		shop = { frame = shop.frame, close = shop.close, body = shop.body, credits = shopCredits },
 		store = { frame = store.frame, close = store.close, body = store.body, note = storeNote },
+		operation = {
+			frame = operation.frame,
+			close = operation.close,
+			body = operation.body,
+			summary = operationSummary,
+			button = operationButton,
+			hud = {
+				panel = ops,
+				method = opsMethod,
+				income = opsIncome,
+				staff = opsStaff,
+				heat = heatMeter,
+				heatRate = opsHeatRate,
+				layLow = layLowButton,
+				open = opsOpenButton,
+			},
+		},
 		career = { frame = career.frame, close = career.close, body = career.body },
 		help = { frame = help.frame, close = help.close, body = help.body, text = helpText },
 		toasts = toasts,
