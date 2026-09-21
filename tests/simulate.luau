@@ -29,6 +29,7 @@ local SERVER = {
 	"RandomEventManager", "RewardManager", "UpgradeManager", "AchievementManager",
 	"CallManager", "LeaderboardManager", "EnvironmentBuilder", "OperationManager",
 	"HeatManager", "TerminalAccess", "LeaderboardRank", "OfficeSessions", "OfficeManager",
+	"MonetisationManager",
 }
 
 local sharedFolder = Stub.newInstance("Folder")
@@ -141,15 +142,33 @@ check("all personalities have every voice category", voiceOk)
 -- Robux catalogue integrity.
 local storeIds = {}
 local storeOk = true
+local expectedPassAssets = {
+	overtime_contract = 1985073755,
+	employee_of_month = 1987311345,
+	corner_office = 1984959773,
+	platinum_headset = 1982812002,
+	alias_licence = 1981684028,
+	night_shift = 1986951304,
+}
+local expectedProductAssets = {
+	coffee_refill = 3713987822,
+	supervisor_takeover = 3713988034,
+	warm_lead = 3713987860,
+	petty_cash = 3713991331,
+	bonus_payslip = 3713987267,
+	double_shift = 3713991457,
+	instant_payslip = 3713991550,
+	legal_injunction = 3713991603,
+}
 for _, def in ipairs(Products.GamePasses) do
 	if storeIds[def.id] then
 		storeOk = false
 		print("       duplicate product id " .. def.id)
 	end
 	storeIds[def.id] = true
-	if def.assetId == nil then
+	if def.assetId ~= expectedPassAssets[def.id] then
 		storeOk = false
-		print("       " .. def.id .. " has no assetId field")
+		print("       " .. def.id .. " has the wrong game-pass assetId")
 	end
 end
 for _, def in ipairs(Products.DeveloperProducts) do
@@ -158,6 +177,10 @@ for _, def in ipairs(Products.DeveloperProducts) do
 		print("       duplicate product id " .. def.id)
 	end
 	storeIds[def.id] = true
+	if def.assetId ~= expectedProductAssets[def.id] then
+		storeOk = false
+		print("       " .. def.id .. " has the wrong developer-product assetId")
+	end
 	if not def.grant or not def.grant.kind then
 		storeOk = false
 		print("       " .. def.id .. " has no grant kind")
@@ -168,6 +191,28 @@ for _, def in ipairs(Products.DeveloperProducts) do
 	end
 end
 check("store catalogue is well formed", storeOk, #Products.GamePasses .. " passes, " .. #Products.DeveloperProducts .. " products")
+
+-- The kiosk should prefer Roblox's current price but retain the catalogue
+-- fallback when product information is temporarily unavailable.
+local marketplace = game:GetService("MarketplaceService")
+marketplace.GetProductInfoAsync = function(_self, assetId)
+	if assetId == expectedProductAssets.coffee_refill then
+		error("simulated product-info outage")
+	end
+	return { PriceInRobux = 321 }
+end
+local MonetisationManager = require(serverFolder.MonetisationManager)
+local priceView = MonetisationManager.catalog({ UserId = -1 })
+local livePassPrice = priceView.passes[1]
+local fallbackProductPrice = priceView.products[1]
+check(
+	"store catalogue uses Roblox live prices",
+	livePassPrice.assetId == expectedPassAssets.overtime_contract and livePassPrice.robux == 321 and livePassPrice.priceIsLive == true
+)
+check(
+	"store catalogue falls back to suggested price",
+	fallbackProductPrice.robux == Products.ProductById.coffee_refill.suggestedRobux and fallbackProductPrice.priceIsLive == false
+)
 
 -- Paid items must never reveal the caller. Anything touching these keys would.
 local FORBIDDEN_EFFECTS = { revealPersonality = true, revealTier = true, showTrust = true, showSuspicion = true }

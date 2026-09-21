@@ -272,17 +272,14 @@ method, net income per second, desks used, and a **Police Heat** meter.
 
 ---
 
-## Step 8 — Robux items (optional, do it last)
+## Step 8 — Robux items
 
-The game runs fine without this. Every item in `src/shared/Products.luau` ships
-with `assetId = 0`, which the store renders as **Unavailable** rather than
-prompting a purchase that would fail.
-
-To turn an item on:
+The production asset IDs are configured in `src/shared/Products.luau`. If you
+replace or add an item:
 
 1. **Creator Dashboard → your experience → Monetization.**
-   * Game Passes for the five permanent items.
-   * Developer Products for the six consumables.
+   * Game Passes for permanent items.
+   * Developer Products for repeatable purchases.
 2. Copy each item's ID.
 3. Paste it into the matching `assetId` field in `Products.luau`.
 
@@ -303,9 +300,11 @@ To turn an item on:
 | Instant Payslip | Developer Product | 79 R$ |
 | Suspiciously Expensive Lawyer | Developer Product | 99 R$ |
 
-Prices are a starting point, not a rule — `suggestedRobux` is only what the
-store UI prints under the button. The real price is whatever you set on the
-Dashboard.
+Prices are a starting point, not a rule. The store reads Roblox's current
+`PriceInRobux` value on the player's client so Managed Pricing and regional
+prices are reflected automatically; `suggestedRobux` is displayed only if that
+lookup temporarily fails. The Roblox purchase prompt remains authoritative for
+the amount charged.
 
 **Test it.** With at least one item configured:
 

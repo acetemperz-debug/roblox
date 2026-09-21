@@ -33,7 +33,7 @@ and used on a real person. Do not do any of this to anybody.
 | RewardManager | `src/server/RewardManager.luau` | Payouts and bonuses |
 | UpgradeManager | `src/server/UpgradeManager.luau` | Purchases |
 | AchievementManager | `src/server/AchievementManager.luau` | Unlock checks |
-| Products | `src/shared/Products.luau` | Robux catalogue: 5 passes, 6 developer products |
+| Products | `src/shared/Products.luau` | Robux catalogue: 6 passes, 8 developer products |
 | MonetisationManager | `src/server/MonetisationManager.luau` | Ownership caching, ProcessReceipt, grants |
 | CosmeticsManager | `src/server/CosmeticsManager.luau` | Overhead titles and the Platinum Headset |
 | Operation | `src/shared/Operation.luau` | Tycoon data: 7 methods, 7 staff tiers, 7 premises, 7 security, 7 tradecraft |
@@ -237,10 +237,11 @@ move a player up them.
 
 ## Robux
 
-The catalogue lives in `src/shared/Products.luau`. Every item ships with
-`assetId = 0`, which means "not configured" — the store shows it as unavailable
-rather than prompting a purchase that would fail. Create each item on the
-Creator Dashboard and paste the IDs in.
+The catalogue lives in `src/shared/Products.luau` and contains the live Creator
+Dashboard asset IDs. The store asks Roblox on each player's client for the
+current `PriceInRobux`, so Managed Pricing changes and regional prices appear
+without a code release.
+`suggestedRobux` is used only when that lookup temporarily fails.
 
 | Game Pass | Effect |
 | --- | --- |

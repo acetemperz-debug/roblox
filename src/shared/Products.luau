@@ -1,10 +1,10 @@
 --!nonstrict
 -- Products
 -- The Robux catalogue: Game Passes (permanent) and Developer Products
--- (consumable). Nothing here works until you create each item on the Roblox
--- Creator Dashboard and paste its ID into `assetId` below -- an assetId of 0
--- means "not configured", and the game shows the item as unavailable instead of
--- prompting a purchase that would fail.
+-- (consumable). `suggestedRobux` is only a fallback for display when Roblox's
+-- live product-info lookup is unavailable; the purchase prompt remains the
+-- authority for the price a player actually pays. An assetId of 0 means "not
+-- configured", and the game shows that item as unavailable.
 --
 -- Credit packs are granted with countAsEarnings = false, so bought Credits can
 -- buy desk upgrades but never lifetime earnings. Rank, the earnings board and
@@ -25,7 +25,7 @@ local Products = {}
 Products.GamePasses = {
 	{
 		id = "overtime_contract",
-		assetId = 0,
+		assetId = 1985073755,
 		name = "Overtime Contract",
 		blurb = "Double Credits from every call, forever. Does not affect the leaderboards.",
 		suggestedRobux = 199,
@@ -35,7 +35,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "employee_of_month",
-		assetId = 0,
+		assetId = 1987311345,
 		name = "Employee Of The Month",
 		blurb = "A gold title over your head that everyone in the server can see. Purely for showing off.",
 		suggestedRobux = 99,
@@ -45,7 +45,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "corner_office",
-		assetId = 0,
+		assetId = 1984959773,
 		name = "Corner Office",
 		blurb = "Your own desk inside the glass manager's office. Take calls from up there.",
 		suggestedRobux = 149,
@@ -54,7 +54,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "platinum_headset",
-		assetId = 0,
+		assetId = 1982812002,
 		name = "Platinum Headset",
 		blurb = "A cosmetic headset your character actually wears. No stats. None. It just looks expensive.",
 		suggestedRobux = 79,
@@ -63,7 +63,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "night_shift",
-		assetId = 0,
+		assetId = 1986951304,
 		name = "Night Shift Licence",
 		blurb = "The floor keeps working while you are offline for up to 24 hours instead of 4.",
 		suggestedRobux = 149,
@@ -73,7 +73,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "alias_licence",
-		assetId = 0,
+		assetId = 1981684028,
 		name = "Alias Licence",
 		blurb = "Stop being Kevin. Pick your own fake technician name and it replaces Kevin everywhere in your dialogue.",
 		suggestedRobux = 99,
@@ -93,7 +93,7 @@ Products.GamePasses = {
 Products.DeveloperProducts = {
 	{
 		id = "coffee_refill",
-		assetId = 0,
+		assetId = 3713987822,
 		name = "Coffee Refill",
 		blurb = "Restores 40 Patience mid-call. The break room machine has been broken since 2019.",
 		suggestedRobux = 25,
@@ -105,7 +105,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "supervisor_takeover",
-		assetId = 0,
+		assetId = 3713988034,
 		name = "Supervisor Takeover",
 		blurb = "Your floor lead handles the next interruption for you. Skips one random event.",
 		suggestedRobux = 35,
@@ -117,7 +117,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "warm_lead",
-		assetId = 0,
+		assetId = 3713987860,
 		name = "Warm Lead",
 		blurb = "Your next caller is rolled one tier friendlier. Consumed automatically when the call starts.",
 		suggestedRobux = 45,
@@ -129,7 +129,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "petty_cash",
-		assetId = 0,
+		assetId = 3713991331,
 		name = "Petty Cash",
 		blurb = "2,500 Call Centre Credits, straight into your account.",
 		suggestedRobux = 49,
@@ -138,7 +138,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "bonus_payslip",
-		assetId = 0,
+		assetId = 3713987267,
 		name = "Bonus Payslip",
 		blurb = "15,000 Call Centre Credits. HR has questions but is not asking them.",
 		suggestedRobux = 199,
@@ -147,7 +147,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "instant_payslip",
-		assetId = 0,
+		assetId = 3713991550,
 		name = "Instant Payslip",
 		blurb = "Collect two hours of your current passive income right now.",
 		suggestedRobux = 79,
@@ -156,7 +156,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "legal_injunction",
-		assetId = 0,
+		assetId = 3713991603,
 		name = "Suspiciously Expensive Lawyer",
 		blurb = "Makes one police investigation go away. Heat drops to zero. Ask no questions.",
 		suggestedRobux = 99,
@@ -168,7 +168,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "double_shift",
-		assetId = 0,
+		assetId = 3713991457,
 		name = "Double Shift",
 		blurb = "Double Credits for the next 30 minutes. Stacks its timer if you buy it again.",
 		suggestedRobux = 99,
@@ -189,7 +189,8 @@ for _, product in ipairs(Products.DeveloperProducts) do
 	Products.ProductById[product.id] = product
 end
 
--- Reverse lookups, built lazily because assetIds are edited by hand and may be 0.
+-- Reverse lookups tolerate 0 so a future unconfigured catalogue entry cannot
+-- accidentally match a malformed receipt.
 function Products.passByAssetId(assetId: number)
 	for _, pass in ipairs(Products.GamePasses) do
 		if pass.assetId ~= 0 and pass.assetId == assetId then

@@ -28,6 +28,42 @@ MonetisationManager.PassChanged = Instance.new("BindableEvent")
 -- Cached so a call never blocks on a web request.
 local passCache: { [number]: { [string]: boolean } } = {}
 
+-- Product information comes from Roblox so Managed Pricing changes are shown
+-- without a code release. Cache successful lookups briefly to avoid spending a
+-- web request every time somebody opens the kiosk. Failures use the catalogue's
+-- suggested price for a much shorter window before trying Roblox again.
+local LIVE_PRICE_TTL = 300
+local FALLBACK_PRICE_TTL = 30
+local priceCache = {}
+
+local function currentPrice(def, infoType): (number, boolean)
+	if not Products.isConfigured(def) then
+		return def.suggestedRobux, false
+	end
+
+	local cacheKey = tostring(def.assetId)
+	local cached = priceCache[cacheKey]
+	if cached and cached.expiresAt > os.clock() then
+		return cached.robux, cached.isLive
+	end
+
+	local ok, info = pcall(function()
+		return MarketplaceService:GetProductInfoAsync(def.assetId, infoType)
+	end)
+	local livePrice = ok and type(info) == "table" and tonumber(info.PriceInRobux) or nil
+	local isLive = livePrice ~= nil and livePrice >= 0
+	local robux = isLive and math.floor(livePrice) or def.suggestedRobux
+	priceCache[cacheKey] = {
+		robux = robux,
+		isLive = isLive,
+		expiresAt = os.clock() + (isLive and LIVE_PRICE_TTL or FALLBACK_PRICE_TTL),
+	}
+	if not ok then
+		warn("[MonetisationManager] price lookup failed for " .. def.id .. ": " .. tostring(info))
+	end
+	return robux, isLive
+end
+
 --------------------------------------------------------------------------------
 -- Game passes
 --------------------------------------------------------------------------------
@@ -189,12 +225,15 @@ function MonetisationManager.catalog(player: Player)
 	local data = PlayerDataManager.get(player)
 	local passes = {}
 	for _, pass in ipairs(Products.GamePasses) do
+		local robux, priceIsLive = currentPrice(pass, Enum.InfoType.GamePass)
 		table.insert(passes, {
 			id = pass.id,
+			assetId = pass.assetId,
 			name = pass.name,
 			blurb = pass.blurb,
 			order = pass.order,
-			robux = pass.suggestedRobux,
+			robux = robux,
+			priceIsLive = priceIsLive,
 			configured = Products.isConfigured(pass),
 			owned = data ~= nil and data.premium.passes[pass.id] == true,
 			cosmetic = pass.cosmetic == true,
@@ -206,12 +245,15 @@ function MonetisationManager.catalog(player: Player)
 
 	local products = {}
 	for _, product in ipairs(Products.DeveloperProducts) do
+		local robux, priceIsLive = currentPrice(product, Enum.InfoType.Product)
 		table.insert(products, {
 			id = product.id,
+			assetId = product.assetId,
 			name = product.name,
 			blurb = product.blurb,
 			order = product.order,
-			robux = product.suggestedRobux,
+			robux = robux,
+			priceIsLive = priceIsLive,
 			configured = Products.isConfigured(product),
 			owned = data ~= nil and (data.premium.inventory[product.id] or 0) or 0,
 			usableInCall = product.usableInCall == true,
@@ -228,6 +270,15 @@ end
 
 function MonetisationManager.start()
 	MarketplaceService.ProcessReceipt = MonetisationManager.processReceipt
+
+	-- Warm the cache in parallel. The kiosk still resolves a missing entry on
+	-- demand, so an early interaction remains correct.
+	for _, pass in ipairs(Products.GamePasses) do
+		task.spawn(currentPrice, pass, Enum.InfoType.GamePass)
+	end
+	for _, product in ipairs(Products.DeveloperProducts) do
+		task.spawn(currentPrice, product, Enum.InfoType.Product)
+	end
 
 	local function onJoin(player: Player)
 		task.spawn(function()

@@ -3273,10 +3273,10 @@ return Personalities
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
 -- Products
 -- The Robux catalogue: Game Passes (permanent) and Developer Products
--- (consumable). Nothing here works until you create each item on the Roblox
--- Creator Dashboard and paste its ID into `assetId` below -- an assetId of 0
--- means "not configured", and the game shows the item as unavailable instead of
--- prompting a purchase that would fail.
+-- (consumable). `suggestedRobux` is only a fallback for display when Roblox's
+-- live product-info lookup is unavailable; the purchase prompt remains the
+-- authority for the price a player actually pays. An assetId of 0 means "not
+-- configured", and the game shows that item as unavailable.
 --
 -- Credit packs are granted with countAsEarnings = false, so bought Credits can
 -- buy desk upgrades but never lifetime earnings. Rank, the earnings board and
@@ -3297,7 +3297,7 @@ local Products = {}
 Products.GamePasses = {
 	{
 		id = "overtime_contract",
-		assetId = 0,
+		assetId = 1985073755,
 		name = "Overtime Contract",
 		blurb = "Double Credits from every call, forever. Does not affect the leaderboards.",
 		suggestedRobux = 199,
@@ -3307,7 +3307,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "employee_of_month",
-		assetId = 0,
+		assetId = 1987311345,
 		name = "Employee Of The Month",
 		blurb = "A gold title over your head that everyone in the server can see. Purely for showing off.",
 		suggestedRobux = 99,
@@ -3317,7 +3317,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "corner_office",
-		assetId = 0,
+		assetId = 1984959773,
 		name = "Corner Office",
 		blurb = "Your own desk inside the glass manager's office. Take calls from up there.",
 		suggestedRobux = 149,
@@ -3326,7 +3326,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "platinum_headset",
-		assetId = 0,
+		assetId = 1982812002,
 		name = "Platinum Headset",
 		blurb = "A cosmetic headset your character actually wears. No stats. None. It just looks expensive.",
 		suggestedRobux = 79,
@@ -3335,7 +3335,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "night_shift",
-		assetId = 0,
+		assetId = 1986951304,
 		name = "Night Shift Licence",
 		blurb = "The floor keeps working while you are offline for up to 24 hours instead of 4.",
 		suggestedRobux = 149,
@@ -3345,7 +3345,7 @@ Products.GamePasses = {
 	},
 	{
 		id = "alias_licence",
-		assetId = 0,
+		assetId = 1981684028,
 		name = "Alias Licence",
 		blurb = "Stop being Kevin. Pick your own fake technician name and it replaces Kevin everywhere in your dialogue.",
 		suggestedRobux = 99,
@@ -3365,7 +3365,7 @@ Products.GamePasses = {
 Products.DeveloperProducts = {
 	{
 		id = "coffee_refill",
-		assetId = 0,
+		assetId = 3713987822,
 		name = "Coffee Refill",
 		blurb = "Restores 40 Patience mid-call. The break room machine has been broken since 2019.",
 		suggestedRobux = 25,
@@ -3377,7 +3377,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "supervisor_takeover",
-		assetId = 0,
+		assetId = 3713988034,
 		name = "Supervisor Takeover",
 		blurb = "Your floor lead handles the next interruption for you. Skips one random event.",
 		suggestedRobux = 35,
@@ -3389,7 +3389,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "warm_lead",
-		assetId = 0,
+		assetId = 3713987860,
 		name = "Warm Lead",
 		blurb = "Your next caller is rolled one tier friendlier. Consumed automatically when the call starts.",
 		suggestedRobux = 45,
@@ -3401,7 +3401,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "petty_cash",
-		assetId = 0,
+		assetId = 3713991331,
 		name = "Petty Cash",
 		blurb = "2,500 Call Centre Credits, straight into your account.",
 		suggestedRobux = 49,
@@ -3410,7 +3410,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "bonus_payslip",
-		assetId = 0,
+		assetId = 3713987267,
 		name = "Bonus Payslip",
 		blurb = "15,000 Call Centre Credits. HR has questions but is not asking them.",
 		suggestedRobux = 199,
@@ -3419,7 +3419,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "instant_payslip",
-		assetId = 0,
+		assetId = 3713991550,
 		name = "Instant Payslip",
 		blurb = "Collect two hours of your current passive income right now.",
 		suggestedRobux = 79,
@@ -3428,7 +3428,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "legal_injunction",
-		assetId = 0,
+		assetId = 3713991603,
 		name = "Suspiciously Expensive Lawyer",
 		blurb = "Makes one police investigation go away. Heat drops to zero. Ask no questions.",
 		suggestedRobux = 99,
@@ -3440,7 +3440,7 @@ Products.DeveloperProducts = {
 	},
 	{
 		id = "double_shift",
-		assetId = 0,
+		assetId = 3713991457,
 		name = "Double Shift",
 		blurb = "Double Credits for the next 30 minutes. Stacks its timer if you buy it again.",
 		suggestedRobux = 99,
@@ -3461,7 +3461,8 @@ for _, product in ipairs(Products.DeveloperProducts) do
 	Products.ProductById[product.id] = product
 end
 
--- Reverse lookups, built lazily because assetIds are edited by hand and may be 0.
+-- Reverse lookups tolerate 0 so a future unconfigured catalogue entry cannot
+-- accidentally match a malformed receipt.
 function Products.passByAssetId(assetId: number)
 	for _, pass in ipairs(Products.GamePasses) do
 		if pass.assetId ~= 0 and pass.assetId == assetId then
@@ -7250,6 +7251,42 @@ MonetisationManager.PassChanged = Instance.new("BindableEvent")
 -- Cached so a call never blocks on a web request.
 local passCache: { [number]: { [string]: boolean } } = {}
 
+-- Product information comes from Roblox so Managed Pricing changes are shown
+-- without a code release. Cache successful lookups briefly to avoid spending a
+-- web request every time somebody opens the kiosk. Failures use the catalogue's
+-- suggested price for a much shorter window before trying Roblox again.
+local LIVE_PRICE_TTL = 300
+local FALLBACK_PRICE_TTL = 30
+local priceCache = {}
+
+local function currentPrice(def, infoType): (number, boolean)
+	if not Products.isConfigured(def) then
+		return def.suggestedRobux, false
+	end
+
+	local cacheKey = tostring(def.assetId)
+	local cached = priceCache[cacheKey]
+	if cached and cached.expiresAt > os.clock() then
+		return cached.robux, cached.isLive
+	end
+
+	local ok, info = pcall(function()
+		return MarketplaceService:GetProductInfoAsync(def.assetId, infoType)
+	end)
+	local livePrice = ok and type(info) == "table" and tonumber(info.PriceInRobux) or nil
+	local isLive = livePrice ~= nil and livePrice >= 0
+	local robux = isLive and math.floor(livePrice) or def.suggestedRobux
+	priceCache[cacheKey] = {
+		robux = robux,
+		isLive = isLive,
+		expiresAt = os.clock() + (isLive and LIVE_PRICE_TTL or FALLBACK_PRICE_TTL),
+	}
+	if not ok then
+		warn("[MonetisationManager] price lookup failed for " .. def.id .. ": " .. tostring(info))
+	end
+	return robux, isLive
+end
+
 --------------------------------------------------------------------------------
 -- Game passes
 --------------------------------------------------------------------------------
@@ -7411,12 +7448,15 @@ function MonetisationManager.catalog(player: Player)
 	local data = PlayerDataManager.get(player)
 	local passes = {}
 	for _, pass in ipairs(Products.GamePasses) do
-		table.insert(passes, {
+		local robux, priceIsLive = currentPrice(pass, Enum.InfoType.GamePass)
+			table.insert(passes, {
 			id = pass.id,
+			assetId = pass.assetId,
 			name = pass.name,
 			blurb = pass.blurb,
 			order = pass.order,
-			robux = pass.suggestedRobux,
+			robux = robux,
+			priceIsLive = priceIsLive,
 			configured = Products.isConfigured(pass),
 			owned = data ~= nil and data.premium.passes[pass.id] == true,
 			cosmetic = pass.cosmetic == true,
@@ -7428,12 +7468,15 @@ function MonetisationManager.catalog(player: Player)
 
 	local products = {}
 	for _, product in ipairs(Products.DeveloperProducts) do
+		local robux, priceIsLive = currentPrice(product, Enum.InfoType.Product)
 		table.insert(products, {
 			id = product.id,
+			assetId = product.assetId,
 			name = product.name,
 			blurb = product.blurb,
 			order = product.order,
-			robux = product.suggestedRobux,
+			robux = robux,
+			priceIsLive = priceIsLive,
 			configured = Products.isConfigured(product),
 			owned = data ~= nil and (data.premium.inventory[product.id] or 0) or 0,
 			usableInCall = product.usableInCall == true,
@@ -7450,6 +7493,15 @@ end
 
 function MonetisationManager.start()
 	MarketplaceService.ProcessReceipt = MonetisationManager.processReceipt
+
+	-- Warm the cache in parallel. The kiosk still resolves a missing entry on
+	-- demand, so an early interaction remains correct.
+	for _, pass in ipairs(Products.GamePasses) do
+		task.spawn(currentPrice, pass, Enum.InfoType.GamePass)
+	end
+	for _, product in ipairs(Products.DeveloperProducts) do
+		task.spawn(currentPrice, product, Enum.InfoType.Product)
+	end
 
 	local function onJoin(player: Player)
 		task.spawn(function()
@@ -11275,6 +11327,7 @@ return Juice
 
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
+local MarketplaceService = game:GetService("MarketplaceService")
 local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local Net = require(Shared.Net)
@@ -11284,6 +11337,9 @@ local Interface = require(script.Parent.Interface)
 local Juice = require(script.Parent.Juice)
 
 local T = UIKit.Theme
+local LIVE_PRICE_TTL = 300
+local FAILED_PRICE_TTL = 30
+local livePriceCache = {}
 
 local ui = Interface.build()
 require(script.Parent.OfficeSessionUI).init(ui)
@@ -11882,7 +11938,7 @@ local function renderStore()
 
 		if item.robux then
 			UIKit.label({
-				Text = "suggested " .. item.robux .. " R$",
+				Text = (item.priceIsLive and "" or "suggested ") .. item.robux .. " R$",
 				TextSize = 11,
 				TextColor3 = T.SubText,
 				TextXAlignment = Enum.TextXAlignment.Right,
@@ -12652,6 +12708,55 @@ function refreshStore()
 	if ok and store then
 		state.store = store
 		renderItemRow()
+
+		-- Resolve prices on the client so Managed Pricing can use this player's
+		-- economic location. Run the requests together so Roblox can batch them;
+		-- the server/suggested values remain visible if any lookup fails.
+		task.spawn(function()
+			local remaining = 0
+			local function fetchPrice(item, infoType)
+				if not item.configured or not item.assetId then
+					return
+				end
+				local cacheKey = tostring(item.assetId)
+				local cached = livePriceCache[cacheKey]
+				if cached and cached.expiresAt > os.clock() then
+					if cached.robux ~= nil then
+						item.robux = cached.robux
+						item.priceIsLive = true
+					end
+					return
+				end
+				remaining += 1
+				task.spawn(function()
+					local priceOk, info = pcall(function()
+						return MarketplaceService:GetProductInfoAsync(item.assetId, infoType)
+					end)
+					local price = priceOk and type(info) == "table" and tonumber(info.PriceInRobux) or nil
+					if price and price >= 0 then
+						item.robux = math.floor(price)
+						item.priceIsLive = true
+						livePriceCache[cacheKey] = { robux = item.robux, expiresAt = os.clock() + LIVE_PRICE_TTL }
+					else
+						livePriceCache[cacheKey] = { expiresAt = os.clock() + FAILED_PRICE_TTL }
+					end
+					remaining -= 1
+				end)
+			end
+
+			for _, pass in ipairs(store.passes) do
+				fetchPrice(pass, Enum.InfoType.GamePass)
+			end
+			for _, product in ipairs(store.products) do
+				fetchPrice(product, Enum.InfoType.Product)
+			end
+			while remaining > 0 do
+				task.wait()
+			end
+			if state.store == store and ui.store.frame.Visible then
+				renderStore()
+			end
+		end)
 	end
 	return ok
 end

@@ -4,6 +4,7 @@
 
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
+local MarketplaceService = game:GetService("MarketplaceService")
 local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local Net = require(Shared.Net)
@@ -13,6 +14,9 @@ local Interface = require(script.Parent.Interface)
 local Juice = require(script.Parent.Juice)
 
 local T = UIKit.Theme
+local LIVE_PRICE_TTL = 300
+local FAILED_PRICE_TTL = 30
+local livePriceCache = {}
 
 local ui = Interface.build()
 require(script.Parent.OfficeSessionUI).init(ui)
@@ -611,7 +615,7 @@ local function renderStore()
 
 		if item.robux then
 			UIKit.label({
-				Text = "suggested " .. item.robux .. " R$",
+				Text = (item.priceIsLive and "" or "suggested ") .. item.robux .. " R$",
 				TextSize = 11,
 				TextColor3 = T.SubText,
 				TextXAlignment = Enum.TextXAlignment.Right,
@@ -1381,6 +1385,55 @@ function refreshStore()
 	if ok and store then
 		state.store = store
 		renderItemRow()
+
+		-- Resolve prices on the client so Managed Pricing can use this player's
+		-- economic location. Run the requests together so Roblox can batch them;
+		-- the server/suggested values remain visible if any lookup fails.
+		task.spawn(function()
+			local remaining = 0
+			local function fetchPrice(item, infoType)
+				if not item.configured or not item.assetId then
+					return
+				end
+				local cacheKey = tostring(item.assetId)
+				local cached = livePriceCache[cacheKey]
+				if cached and cached.expiresAt > os.clock() then
+					if cached.robux ~= nil then
+						item.robux = cached.robux
+						item.priceIsLive = true
+					end
+					return
+				end
+				remaining += 1
+				task.spawn(function()
+					local priceOk, info = pcall(function()
+						return MarketplaceService:GetProductInfoAsync(item.assetId, infoType)
+					end)
+					local price = priceOk and type(info) == "table" and tonumber(info.PriceInRobux) or nil
+					if price and price >= 0 then
+						item.robux = math.floor(price)
+						item.priceIsLive = true
+						livePriceCache[cacheKey] = { robux = item.robux, expiresAt = os.clock() + LIVE_PRICE_TTL }
+					else
+						livePriceCache[cacheKey] = { expiresAt = os.clock() + FAILED_PRICE_TTL }
+					end
+					remaining -= 1
+				end)
+			end
+
+			for _, pass in ipairs(store.passes) do
+				fetchPrice(pass, Enum.InfoType.GamePass)
+			end
+			for _, product in ipairs(store.products) do
+				fetchPrice(product, Enum.InfoType.Product)
+			end
+			while remaining > 0 do
+				task.wait()
+			end
+			if state.store == store and ui.store.frame.Visible then
+				renderStore()
+			end
+		end)
 	end
 	return ok
 end
