@@ -27,6 +27,8 @@ function TerminalAccess.near(player, terminal): boolean
 	elseif terminal.owner and terminal.owner ~= player.UserId then return false end
 	if terminal.canUse and not terminal.canUse(player) then return false end
 	if (root.Position - anchor.Position).Magnitude > (terminal.distance or 10) then return false end
+	-- Explicit opt-out for the public return lift only; computers remain occlusion-checked.
+	if terminal.requiresLineOfSight == false then return true end
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { character, terminal.model or anchor }

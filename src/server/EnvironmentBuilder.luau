@@ -810,7 +810,8 @@ function EnvironmentBuilder.build()
 	end
 
 	-- A manager who patrols the floor.
-	local managerCFrame = CFrame.new(0, 0, 45)
+	-- Leave the arrival pad at (0, 4, 44) and its forward prompt approach clear.
+	local managerCFrame = CFrame.new(16, 0, 44)
 	local manager = buildEmployee(staff, managerCFrame, "Manager")
 	manager.Name = "FloorManager"
 

@@ -1176,6 +1176,38 @@ do
 	check("Solo chooses an owned private office", offices.chooseMode(host, "solo")
 		and offices.canEnter(host, host.UserId) and not at(host, lobbyPoint))
 	local hostSpawn, guestSpawn, strangerSpawn = position(host), position(guest), position(stranger)
+	local returnAnchor = root.OfficeLift.ReturnPromptAnchor
+	local returnPrompt = returnAnchor:FindFirstChildWhichIsA("ProximityPrompt")
+	check("return lift uses a visible non-colliding elevated prompt anchor", returnAnchor.Parent == root.OfficeLift
+		and returnAnchor.Position.Y >= 4 and returnAnchor.CanCollide == false)
+	check("return prompt is explicit, instant and not hidden by occlusion or competing prompts",
+		returnPrompt.ActionText == "Return to My Office" and returnPrompt.RequiresLineOfSight == false
+		and returnPrompt.Exclusivity == Enum.ProximityPromptExclusivity.AlwaysShow and returnPrompt.HoldDuration == 0)
+	check("actual lobby arrival is comfortably inside return activation range",
+		(returnAnchor.Position - lobbyPoint).Magnitude < returnPrompt.MaxActivationDistance - 4)
+	check("lift signage sits above and behind the interaction anchor", root.OfficeLiftSign.Position.Y > returnAnchor.Position.Y + 2
+		and root.OfficeLiftSign.Position.Z < returnAnchor.Position.Z)
+	offices.visitLobby(host)
+	access.remove(host)
+	local previousRaycast = workspace.Raycast
+	workspace.Raycast = function() return {} end -- another avatar/NPC blocks the ray
+	returnPrompt.Triggered:Fire(host)
+	workspace.Raycast = previousRaycast
+	check("Solo returns from the exact lobby spawn even when another character blocks sight", at(host, hostSpawn))
+	offices.visitLobby(host)
+	returnPrompt.Triggered:Fire(host)
+	check("return lift still throttles immediate replay", at(host, lobbyPoint))
+	access.remove(host)
+	host.Character:PivotTo(CFrame.new(0, 4, 80))
+	returnPrompt.Triggered:Fire(host)
+	check("forged return prompt from outside activation distance is denied", at(host, Vector3.new(0, 4, 80)))
+	offices.visitLobby(host)
+	host.Character:FindFirstChildWhichIsA("Humanoid").Health = 0
+	returnPrompt.Triggered:Fire(host)
+	check("dead players cannot activate the return lift", at(host, lobbyPoint))
+	host.Character:FindFirstChildWhichIsA("Humanoid").Health = 100
+	returnPrompt.Triggered:Fire(host)
+	check("valid return after rejected requests still works", at(host, hostSpawn))
 	check("default player spawns are in separate office slots", (hostSpawn - guestSpawn).Magnitude > 100
 		and (guestSpawn - strangerSpawn).Magnitude > 100)
 	check("office ownership attributes use account IDs", root.Office_9201:GetAttribute("OwnerUserId") == host.UserId
@@ -1234,7 +1266,7 @@ do
 	offices.enforce(stranger)
 	check("public leaderboard lobby remains accessible to everyone", at(stranger, lobbyPoint))
 	access.remove(guest)
-	root.OfficeLift:FindFirstChildWhichIsA("ProximityPrompt").Triggered:Fire(guest)
+	root.OfficeLift:FindFirstChildWhichIsA("ProximityPrompt", true).Triggered:Fire(guest)
 	check("the lobby return lift resolves a guest's current host", at(guest, hostSpawn))
 
 	local hostProfile, guestProfile = PlayerDataManager.get(host), PlayerDataManager.get(guest)

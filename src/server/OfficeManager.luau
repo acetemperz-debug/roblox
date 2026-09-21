@@ -366,13 +366,24 @@ function OfficeManager.start(callback)
 	onTerminal = callback
 	local lobby = Environment.getRoot()
 	local lift = block(lobby, "OfficeLift", Vector3.new(8, 1, 6), CFrame.new(0, 0.5, 44), purple, Enum.Material.Neon)
-	sign(lobby, "OfficeLiftSign", CFrame.new(0, 6, 42), "YOUR OFFICE\nUSE THE LIFT", gold)
+	-- Keep the control above/in front of arriving avatars, not inside the pad.
+	local anchor = block(lift, "ReturnPromptAnchor", Vector3.new(2, 1.5, 0.5), CFrame.new(0, 5, 40), purple, Enum.Material.Neon)
+	anchor.CanCollide, anchor.CanTouch, anchor.CanQuery = false, false, false
+	sign(lobby, "OfficeLiftSign", CFrame.new(0, 9, 38), "YOUR OFFICE\nUSE THE LIFT", gold)
 	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "ReturnToOfficePrompt"
 	prompt.ActionText = "Return to My Office"
-	prompt.MaxActivationDistance = 10
-	prompt.Parent = lift
+	prompt.ObjectText = "Office Return Lift"
+	prompt.RequiresLineOfSight = false
+	prompt.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 12
+	prompt.Parent = anchor
 	prompt.Triggered:Connect(function(player)
-		if Access.near(player, { anchor = lift }) and Access.throttle(player, "travel", 2) then OfficeManager.teleport(player) end
+		-- This public travel control must remain usable in a crowd. Terminals still
+		-- require server raycasts; the lift retains health, distance and rate checks.
+		if Access.near(player, { anchor = anchor, distance = 12, requiresLineOfSight = false })
+			and Access.throttle(player, "travel", 2) then OfficeManager.teleport(player) end
 	end)
 	local function joined(player)
 		removing[player] = nil
