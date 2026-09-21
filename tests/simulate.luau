@@ -1132,10 +1132,11 @@ do
 			and current ~= nil and current.terminal.kind == "workstation" and access.valid(actor)
 			and (current.terminal.owner == owner.UserId or (current.terminal.owner == nil and actor == owner))
 	end)
-	local function addActor(uid, name, mode)
+	local function addActor(uid, name, mode, savedPreference)
 		local actor = Stub.newPlayer(uid, name)
 		services.Players:Add(actor)
 		PlayerDataManager.load(actor)
+		if savedPreference then PlayerDataManager.get(actor).settings.officeMode = savedPreference end
 		offices.update(actor, OperationManager.view(actor))
 		Stub.spawnCharacter(actor)
 		if mode then offices.chooseMode(actor, mode) end
@@ -1168,13 +1169,23 @@ do
 	end
 
 	local host = addActor(9201, "PhysicalHost")
-	local guest = addActor(9202, "PhysicalGuest", "solo")
-	local stranger = addActor(9203, "PhysicalStranger", "solo")
+	local guest = addActor(9202, "PhysicalGuest", nil, "solo")
+	local stranger = addActor(9203, "PhysicalStranger", nil, "host_coop")
 	local lobbyPoint = Vector3.new(0, 4, 44)
 	check("new players stay in the public lobby until a mode is chosen", at(host, lobbyPoint)
-		and not offices.teleport(host) and offices.sessionView(host).needsChoice)
+		and not offices.teleport(host) and offices.sessionView(host).needsChoice
+		and PlayerDataManager.getOfficeMode(host) == nil)
 	check("Solo chooses an owned private office", offices.chooseMode(host, "solo")
 		and offices.canEnter(host, host.UserId) and not at(host, lobbyPoint))
+	check("first choice is stored in the existing profile", PlayerDataManager.getOfficeMode(host) == "solo")
+	check("returning Solo skips onboarding and enters its private office", not offices.sessionView(guest).needsChoice
+		and offices.sessionView(guest).mode == "solo" and offices.sessionView(guest).preference == "solo"
+		and not at(guest, lobbyPoint))
+	check("returning Host Co-op skips onboarding without restoring guests", not offices.sessionView(stranger).needsChoice
+		and offices.sessionView(stranger).mode == "coop" and offices.sessionView(stranger).preference == "host_coop"
+		and #offices.sessionView(stranger).members == 1 and not at(stranger, lobbyPoint))
+	check("established preferences cannot be remotely changed away from Management",
+		not offices.chooseMode(host, "coop") and PlayerDataManager.getOfficeMode(host) == "solo")
 	local hostSpawn, guestSpawn, strangerSpawn = position(host), position(guest), position(stranger)
 	local returnAnchor = root.OfficeLift.ReturnPromptAnchor
 	local returnPrompt = returnAnchor:FindFirstChildWhichIsA("ProximityPrompt")
@@ -1213,6 +1224,10 @@ do
 	check("office ownership attributes use account IDs", root.Office_9201:GetAttribute("OwnerUserId") == host.UserId
 		and host:GetAttribute("OfficeHostUserId") == host.UserId and host:GetAttribute("OfficeMode") == "solo")
 	check("an invite remote without physical management access is rejected", not offices.invite(host, guest.UserId))
+	useComputer(host, host, "OFFICE MANAGEMENT")
+	check("Management changes and saves the default office mode", offices.chooseMode(host, "coop")
+		and PlayerDataManager.getOfficeMode(host) == "host_coop" and offices.sessionView(host).mode == "coop")
+	access.remove(host)
 	stranger.Character:PivotTo(host.Character.HumanoidRootPart.CFrame)
 	services.RunService.Heartbeat:Fire(0.2)
 	check("heartbeat ejects an uninvited player from an office", at(stranger, strangerSpawn)

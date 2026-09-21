@@ -29,7 +29,7 @@ PlayerDataManager.DataChanged = Instance.new("BindableEvent")
 
 local function defaultProfile()
 	return {
-		version = 1,
+		version = 2,
 		credits = 0,
 		rankIndex = 1,
 		upgrades = {},
@@ -58,6 +58,8 @@ local function defaultProfile()
 		operation = Operation.defaultState(),
 		settings = {
 			difficulty = "Normal",
+			-- Intentionally absent for a first-time player. Once chosen, this is
+			-- "solo" or "host_coop"; invitations and guests are never persisted.
 		},
 		premium = {
 			passes = {}, -- [passId] = true
@@ -85,6 +87,10 @@ local function reconcile(profile)
 		profile.premium.passes = profile.premium.passes or {}
 		profile.premium.inventory = profile.premium.inventory or {}
 		profile.premium.receipts = profile.premium.receipts or {}
+	end
+	if typeof(profile.settings) ~= "table" then profile.settings = {} end
+	if profile.settings.officeMode ~= "solo" and profile.settings.officeMode ~= "host_coop" then
+		profile.settings.officeMode = nil
 	end
 	if typeof(profile.operation) ~= "table" then
 		profile.operation = Operation.defaultState()
@@ -116,6 +122,7 @@ local function reconcile(profile)
 			end
 		end
 	end
+	profile.version = 2
 	return profile
 end
 
@@ -406,6 +413,26 @@ function PlayerDataManager.setDifficulty(player: Player, key: string)
 	end
 	profile.settings.difficulty = key
 	PlayerDataManager.notify(player)
+end
+
+function PlayerDataManager.getOfficeMode(player: Player): string?
+	local profile = profiles[player.UserId]
+	local mode = profile and profile.settings and profile.settings.officeMode
+	return (mode == "solo" or mode == "host_coop") and mode or nil
+end
+
+function PlayerDataManager.setOfficeMode(player: Player, mode: string): boolean
+	if mode ~= "solo" and mode ~= "host_coop" then return false end
+	local profile = profiles[player.UserId]
+	if not profile then return false end
+	profile.settings.officeMode = mode
+	PlayerDataManager.notify(player)
+	-- Mode changes are rare and affect the next join, so persist promptly in
+	-- addition to the normal autosave/final-save lifecycle.
+	if not profile.loadFailed and not profile.saveUnavailable then
+		task.spawn(PlayerDataManager.save, player, false)
+	end
+	return true
 end
 
 --------------------------------------------------------------------------------

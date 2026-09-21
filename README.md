@@ -53,8 +53,10 @@ interface are both generated at runtime.
 
 ## Private offices and host co-op (1.5.0)
 
-Every server session starts with **Solo** or **Host Co-op**. Both create a private
-personal office: choosing Co-op does not grant random players access. Use your
+The first session starts with **Solo** or **Host Co-op** and saves that choice in
+the existing player profile. Later joins restore it and enter the personal office
+without blocking onboarding; the default can be changed at **Office Management**.
+Choosing Co-op does not grant random players access. Use your
 physical **Office Management** computer's **Invite / Access** button to invite
 another player in the same server. The addressed player must accept the offer
 within 90 seconds. Parties support eight players including the host.
@@ -73,7 +75,8 @@ host office. Host disconnection sends guests back to their own Solo offices;
 guest disconnection leaves the host undisturbed. Rejoining requires fresh consent.
 
 Membership and invitations live only in server memory. Existing user-ID save
-keys, receipts, permanent ownership and leaderboards are unchanged. Plot entry
+keys, receipts, permanent ownership and leaderboards are unchanged; only the
+owner's `solo` / `host_coop` default is persistent. Plot entry
 is checked server-side independently of terminal permissions, including forced
 movement across walls; replicated ownership attributes are display metadata,
 not authorization. These are isolated plots in the same server, not reserved

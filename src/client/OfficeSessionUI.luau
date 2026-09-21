@@ -91,6 +91,12 @@ function OfficeSessionUI.init(ui)
 				b.ZIndex = 85
 			end
 		end
+		if state.isHost and state.canManageAccess then
+			local isCoopDefault = state.preference == "host_coop"
+			row("Office Mode default: " .. (isCoopDefault and "HOST CO-OP" or "SOLO")
+				.. " (applies automatically on your next join)", isCoopDefault and "Use Solo" or "Use Co-op",
+				function() act("choose", isCoopDefault and "solo" or "coop") end)
+		end
 		for _, member in ipairs(state.members or {}) do
 			local canRemove = state.canManageAccess and member.userId ~= state.hostUserId
 			row(member.name .. (member.userId == state.hostUserId and " (HOST)" or " (GUEST)"), "Remove", canRemove and function() act("revoke", member.userId) end or nil)

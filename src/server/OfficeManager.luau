@@ -13,6 +13,7 @@ local OfficeManager = {}
 local offices, slots = {}, {}
 local policy = Sessions.new()
 local removing = setmetatable({}, { __mode = "k" })
+local initialized = setmetatable({}, { __mode = "k" })
 local onTerminal
 OfficeManager.SessionChanged = Instance.new("BindableEvent")
 OfficeManager.Travelling = Instance.new("BindableEvent")
@@ -136,8 +137,10 @@ function OfficeManager.canManageAccess(player)
 end
 
 function OfficeManager.sessionView(player)
+	if not initialized[player] then return nil end
 	local view = policy:view(player.UserId)
 	if not view then return nil end
+	view.preference = Data.getOfficeMode(player)
 	view.canManageAccess = OfficeManager.canManageAccess(player)
 	view.candidates = {}
 	if view.canManageAccess then
@@ -163,9 +166,29 @@ local function changed(ids)
 	end
 end
 
+local function initializePreference(player)
+	if initialized[player] or removing[player] or not Data.get(player) then return false end
+	local record = policy:get(player.UserId)
+	if not record or record.player ~= player then return false end
+	initialized[player] = true
+	local preference = Data.getOfficeMode(player)
+	if preference then policy:choose(player.UserId, preference == "host_coop" and "coop" or "solo") end
+	changed({ player.UserId })
+	return preference ~= nil
+end
+
 function OfficeManager.chooseMode(player, mode)
+	if not initialized[player] then return false, "Your profile is still loading." end
+	local record = policy:get(player.UserId)
+	if not record then return false, "Your office session is unavailable." end
+	-- The first onboarding choice is made from the lobby. Once a preference
+	-- exists, changing it requires the owner's physical Management computer.
+	if not record.needsChoice and not OfficeManager.canManageAccess(player) then
+		return false, "Use your own management computer to change Office Mode."
+	end
 	local ok, message = policy:choose(player.UserId, mode)
 	if ok then
+		Data.setOfficeMode(player, mode == "coop" and "host_coop" or "solo")
 		changed({ player.UserId })
 		OfficeManager.teleport(player)
 	end
@@ -251,12 +274,14 @@ function OfficeManager.remove(player)
 		office.model:Destroy()
 		slots[office.slot], offices[player] = nil, nil
 	end
+	initialized[player] = nil
 	changed(affected)
 end
 
 function OfficeManager.update(player, view)
 	if not view or removing[player] then return end
 	policy:add(player)
+	initializePreference(player)
 	local firstVisit = offices[player] == nil
 	local office = offices[player] or create(player)
 	local profile = Data.get(player)
@@ -399,8 +424,11 @@ function OfficeManager.start(callback)
 		end
 		player.CharacterAdded:Connect(respawned)
 		if player.Character then respawned(player.Character) end
-		changed({ player.UserId })
 	end
+	Data.DataChanged.Event:Connect(function(player)
+		local restored = initializePreference(player)
+		if restored then OfficeManager.teleport(player) end
+	end)
 	Players.PlayerAdded:Connect(joined)
 	for _, player in ipairs(Players:GetPlayers()) do joined(player) end
 	Players.PlayerRemoving:Connect(OfficeManager.remove)

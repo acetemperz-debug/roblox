@@ -53,10 +53,13 @@ The source branch has not been merged or the Roblox experience published.
 
 ### Invite-only co-op Studio checklist
 
-1. Start a three-player local server. Check the Solo / Host Co-op chooser on
-   desktop, phone and controller. Both choices must remain private without
-   accepted invitations. Before selection, remain in the public lobby.
-2. At the host's Management computer, use Invite / Access. Sending an invitation
+1. Start a three-player local server with fresh profiles. Check the Solo / Host
+   Co-op chooser on desktop, phone and controller. Both choices must remain
+   private without accepted invitations. Before selection, remain in the public
+   lobby. Rejoin after each choice: the chooser must stay hidden, Solo must enter
+   its private office, and Host Co-op must enter its own empty co-op session.
+2. At the host's Management computer, use Invite / Access and change **Office
+   Mode** once. Rejoin to verify the new default persisted. Sending an invitation
    must not move the recipient or grant entry. Decline once, let one expire,
    then accept a fresh offer. Only the addressed recipient may accept it.
 3. The accepted guest should appear in the host's office. Check its host label,
