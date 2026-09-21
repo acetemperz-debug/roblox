@@ -45,7 +45,8 @@ local _, shopPrompt, executivePrompt = EnvironmentBuilder.build()
 local function openTerminal(player, terminal)
 	if CallManager.getState(player) then return end
 	if TerminalAccess.open(player, terminal) then
-		Net.event("TerminalOpened"):FireClient(player, { kind = terminal.kind, anchor = terminal.anchor })
+		Net.event("TerminalOpened"):FireClient(player, { kind = terminal.kind, anchor = terminal.anchor,
+			isGuest = terminal.owner ~= nil and terminal.owner ~= player.UserId })
 	end
 end
 
@@ -60,6 +61,9 @@ for _, entry in ipairs({
 }) do
 	if entry.prompt then
 		local terminal = { kind = entry.kind, anchor = entry.prompt.Parent, model = entry.prompt.Parent.Parent, canUse = entry.canUse }
+		terminal.canAccess = function(player)
+			return OfficeManager.sessionHost(player) == player and OfficeManager.canEnter(player, player.UserId)
+		end
 		entry.prompt.ActionText = "Use Computer"
 		entry.prompt.Triggered:Connect(function(player)
 			if TerminalAccess.throttle(player, "prompt", 0.4) then openTerminal(player, terminal) end
@@ -69,9 +73,51 @@ end
 
 local function closeTerminal(player)
 	TerminalAccess.close(player)
-	if CallManager.getState(player) then CallManager.hangUp(player) end
+	CallManager.cancel(player)
 	Net.event("TerminalClosed"):FireClient(player)
 end
+
+OfficeManager.Travelling.Event:Connect(closeTerminal)
+CallManager.setContextValidator(function(actor, owner)
+	if OfficeManager.sessionHost(actor) ~= owner or not OfficeManager.canEnter(actor, owner.UserId) then return false end
+	local current = TerminalAccess.current(actor)
+	return current ~= nil and current.terminal.kind == "workstation" and TerminalAccess.valid(actor)
+		and (current.terminal.owner == owner.UserId or (current.terminal.owner == nil and actor == owner))
+end)
+
+local function pushOfficeView(player)
+	local host = OfficeManager.sessionHost(player)
+	local view = host and PlayerDataManager.publicView(host)
+	if not view then return end
+	Net.event("OfficeDataUpdated"):FireClient(player, {
+		hostUserId = host.UserId, hostName = host.DisplayName, credits = view.credits,
+		rankIndex = view.rankIndex, rankName = view.rankName, saveDisabled = view.saveDisabled, saveNote = view.saveNote,
+	})
+	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(host))
+end
+
+OfficeManager.SessionChanged.Event:Connect(function(player, view)
+	Net.event("OfficeSessionUpdated"):FireClient(player, view)
+	pushOfficeView(player)
+end)
+
+Net.event("OfficeAction").OnServerEvent:Connect(function(player, action, a, b)
+	if not TerminalAccess.throttle(player, "officeAction", 0.3) or typeof(action) ~= "string" then return end
+	local ok, message
+	if action == "choose" and (a == "solo" or a == "coop") then
+		ok, message = OfficeManager.chooseMode(player, a)
+	elseif action == "invite" and TerminalAccess.finiteInteger(a, 1, 9007199254740991) then
+		ok, message = OfficeManager.invite(player, a)
+	elseif action == "respond" and typeof(a) == "string" and #a <= 32 and typeof(b) == "boolean" then
+		ok, message = OfficeManager.respondInvite(player, a, b)
+	elseif action == "revoke" and TerminalAccess.finiteInteger(a, 1, 9007199254740991) then
+		ok, message = OfficeManager.revokeGuest(player, a)
+	elseif action == "leave" then
+		ok, message = OfficeManager.leaveSession(player)
+	else return end
+	Net.event("OfficeSessionUpdated"):FireClient(player, OfficeManager.sessionView(player))
+	if message then Net.event("Notify"):FireClient(player, { title = "Office Access", body = message, kind = ok and "info" or "warn" }) end
+end)
 
 Net.event("CloseTerminal").OnServerEvent:Connect(closeTerminal)
 Players.PlayerRemoving:Connect(function(player) TerminalAccess.remove(player) end)
@@ -127,6 +173,9 @@ end
 PlayerDataManager.DataChanged.Event:Connect(function(player, view)
 	setupLeaderstats(player, view)
 	Net.event("DataUpdated"):FireClient(player, view)
+	for _, viewer in ipairs(Players:GetPlayers()) do
+		if OfficeManager.sessionHost(viewer) == player then pushOfficeView(viewer) end
+	end
 end)
 
 Players.PlayerAdded:Connect(function(player)
@@ -164,8 +213,10 @@ AchievementManager.Unlocked.Event:Connect(function(player, achievement)
 end)
 
 OperationManager.Changed.Event:Connect(function(player, view)
-	Net.event("OperationUpdated"):FireClient(player, view)
 	OfficeManager.update(player, view)
+	for _, viewer in ipairs(Players:GetPlayers()) do
+		if OfficeManager.sessionHost(viewer) == player then Net.event("OperationUpdated"):FireClient(viewer, view) end
+	end
 end)
 
 OperationManager.OfflineEarnings.Event:Connect(function(player, amount, seconds)
@@ -177,12 +228,18 @@ OperationManager.OfflineEarnings.Event:Connect(function(player, amount, seconds)
 end)
 
 HeatManager.Warned.Event:Connect(function(player, warning)
-	Net.event("HeatWarning"):FireClient(player, warning)
+	for _, viewer in ipairs(Players:GetPlayers()) do
+		if OfficeManager.sessionHost(viewer) == player then Net.event("HeatWarning"):FireClient(viewer, warning) end
+	end
 end)
 
 OperationManager.Raided.Event:Connect(function(player, outcome)
-	Net.event("RaidAlert"):FireClient(player, outcome)
-	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(player))
+	for _, viewer in ipairs(Players:GetPlayers()) do
+		if OfficeManager.sessionHost(viewer) == player then
+			Net.event("RaidAlert"):FireClient(viewer, outcome)
+			Net.event("OperationUpdated"):FireClient(viewer, OperationManager.view(player))
+		end
+	end
 	OfficeManager.update(player, OperationManager.view(player))
 	-- Everyone gets to watch the car turn up.
 	EnvironmentBuilder.showRaid(player.DisplayName, outcome.escaped and 12 or Operation.Raid.ShutdownSeconds)
@@ -260,7 +317,9 @@ Net.event("StartCall").OnServerEvent:Connect(function(player, difficultyKey)
 	if not level then
 		return
 	end
-	local ok, reason = CallManager.start(player, difficultyKey)
+	local owner = OfficeManager.sessionHost(player)
+	if not owner then return end
+	local ok, reason = CallManager.start(player, difficultyKey, owner)
 	if not ok then
 		Net.event("Notify"):FireClient(player, { title = "Cannot Start Call", body = reason, kind = "warn" })
 	end
@@ -298,7 +357,8 @@ Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
 	if typeof(key) ~= "string" or not Difficulty.Levels[key] then
 		return
 	end
-	local data = PlayerDataManager.get(player)
+	local owner = OfficeManager.sessionHost(player)
+	local data = owner and PlayerDataManager.get(owner)
 	local level = Difficulty.Levels[key]
 	if data and data.rankIndex < level.minRankIndex then
 		Net.event("Notify"):FireClient(player, {
@@ -308,7 +368,7 @@ Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
 		})
 		return
 	end
-	PlayerDataManager.setDifficulty(player, key)
+	if owner == player then PlayerDataManager.setDifficulty(player, key) end
 end)
 
 Net.event("PromptPurchase").OnServerEvent:Connect(function(player, kind, itemId)
@@ -455,7 +515,13 @@ Net.func("GetData").OnServerInvoke = function(player)
 end
 
 Net.func("GetOperation").OnServerInvoke = function(player)
-	return OperationManager.view(player)
+	return OperationManager.view(OfficeManager.sessionHost(player) or player)
+end
+
+Net.func("GetOfficeSession").OnServerInvoke = function(player)
+	if not TerminalAccess.throttle(player, "officeRead", 0.5) then return nil end
+	pushOfficeView(player)
+	return OfficeManager.sessionView(player)
 end
 
 Net.func("GetStore").OnServerInvoke = function(player)

@@ -42,6 +42,8 @@ and used on a real person. Do not do any of this to anybody.
 | EnvironmentBuilder | `src/server/EnvironmentBuilder.luau` | Builds the whole call centre from parts |
 | LeaderboardManager | `src/server/LeaderboardManager.luau` | OrderedDataStore wall boards |
 | MacrosoftServer | `src/server/MacrosoftServer.server.luau` | Server entry point |
+| OfficeManager / OfficeSessions | `src/server/OfficeManager.luau`, `src/server/OfficeSessions.luau` | Personal plots, authoritative entry and ephemeral invite-only parties |
+| OfficeSessionUI | `src/client/OfficeSessionUI.luau` | Session choice, invitations and management access controls |
 | UIKit / Interface | `src/client/UIKit.luau`, `src/client/Interface.luau` | Builds the whole GUI in code |
 | MacrosoftClient | `src/client/MacrosoftClient.client.luau` | Client entry point |
 | Juice | `src/client/Juice.luau` | Floating numbers, flashes, shakes, confetti, the live ticker |
@@ -49,12 +51,40 @@ and used on a real person. Do not do any of this to anybody.
 No parts, GUIs or RemoteEvents have to be created by hand. The world and the
 interface are both generated at runtime.
 
-## Physical office update (1.4.0)
+## Private offices and host co-op (1.5.0)
+
+Every server session starts with **Solo** or **Host Co-op**. Both create a private
+personal office: choosing Co-op does not grant random players access. Use your
+physical **Office Management** computer's **Invite / Access** button to invite
+another player in the same server. The addressed player must accept the offer
+within 90 seconds. Parties support eight players including the host.
+
+Accepted guests teleport into the host's office and may make calls at its
+workstation. Call income, heat, rank progress and achievements belong to the
+host; guests never merge saves or consume either player's paid items. Spending,
+campaign changes, recruitment, upgrades and premium purchases stay host-only.
+Each player's existing personal passive-income simulation continues separately;
+it is not copied into, multiplied by, or paid out of the shared office.
+
+The host can remove guests at Management; guests can leave there too. Removal
+returns the guest to their own office and cancels any unfinished shared call
+without payout. Respawning and the public lobby's return lift use the accepted
+host office. Host disconnection sends guests back to their own Solo offices;
+guest disconnection leaves the host undisturbed. Rejoining requires fresh consent.
+
+Membership and invitations live only in server memory. Existing user-ID save
+keys, receipts, permanent ownership and leaderboards are unchanged. Plot entry
+is checked server-side independently of terminal permissions, including forced
+movement across walls; replicated ownership attributes are display metadata,
+not authorization. These are isolated plots in the same server, not reserved
+servers or cross-server invitations.
+
+## Physical office foundation (1.4.0)
 
 Continues `claude/roblox-scam-call-centre-yx6beg` at `bbdb628`; the existing
 managers, dialogue, economy, save keys and Rojo layout remain in place.
 
-Players spawn in their own saved office. Interact with **Calls + Campaigns**
+After choosing a mode, players enter their own saved office. Interact with **Calls + Campaigns**
 to choose a difficulty, make calls or select a fictional operation method.
 **HR** hires/fires staff; **Office Management** expands premises, buys desk
 upgrades and trains tradecraft; **Security** installs protection, monitors heat,

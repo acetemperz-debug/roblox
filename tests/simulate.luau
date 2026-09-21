@@ -28,7 +28,7 @@ local SERVER = {
 	"PlayerDataManager", "NPCGenerator", "NPCPersonalitySystem", "DialogueManager",
 	"RandomEventManager", "RewardManager", "UpgradeManager", "AchievementManager",
 	"CallManager", "LeaderboardManager", "EnvironmentBuilder", "OperationManager",
-	"HeatManager", "TerminalAccess", "LeaderboardRank", "OfficeManager",
+	"HeatManager", "TerminalAccess", "LeaderboardRank", "OfficeSessions", "OfficeManager",
 }
 
 local sharedFolder = Stub.newInstance("Folder")
@@ -860,6 +860,117 @@ for _ in pairs(seenSituations) do
 end
 check("most situations appear", situationCoverage >= DialogueLibrary.count() - 6, situationCoverage .. "/" .. DialogueLibrary.count())
 
+print("\nInvite-only office consent policy")
+do
+	local Sessions = require(serverFolder.OfficeSessions)
+	local clock = 100
+	local sessions = Sessions.new(function() return clock end)
+	local host = { UserId = 8001, Name = "Host", DisplayName = "Host" }
+	local guest = { UserId = 8002, Name = "Guest", DisplayName = "Guest" }
+	local stranger = { UserId = 8003, Name = "Stranger", DisplayName = "Stranger" }
+	for _, actor in ipairs({ host, guest, stranger }) do sessions:add(actor) end
+	check("new sessions require an explicit Solo or Co-op choice", sessions:view(host.UserId).needsChoice
+		and not sessions:canEnter(host.UserId, host.UserId))
+	check("invalid mode cannot bypass the session choice", not sessions:choose(host.UserId, "public"))
+	sessions:choose(host.UserId, "solo")
+	sessions:choose(guest.UserId, "solo")
+	sessions:choose(stranger.UserId, "coop")
+	check("Solo grants only personal office access", sessions:canEnter(host.UserId, host.UserId)
+		and not sessions:canEnter(guest.UserId, host.UserId))
+	check("Co-op selection alone grants no shared access", not sessions:canEnter(stranger.UserId, host.UserId))
+	check("unknown offices and players fail closed", not sessions:canEnter(host.UserId, 999999)
+		and not sessions:canEnter(999999, host.UserId))
+	check("self and offline invitations are denied", not sessions:invite(host.UserId, host.UserId)
+		and not sessions:invite(host.UserId, 999999))
+	local invited, _, invitation = sessions:invite(host.UserId, guest.UserId)
+	check("Solo owner can invite a guest later", invited and invitation ~= nil)
+	check("sending an invitation never grants entry", not sessions:canEnter(guest.UserId, host.UserId)
+		and sessions:host(guest.UserId) == guest)
+	check("only the named invitee sees the invitation", #sessions:view(guest.UserId).invitations == 1
+		and #sessions:view(stranger.UserId).invitations == 0)
+	check("another player cannot accept a stolen invitation", not sessions:respond(stranger.UserId, invitation.id, true))
+	check("acceptance must be an explicit boolean", not sessions:respond(guest.UserId, invitation.id, "true"))
+	check("declining keeps the target's own office", sessions:respond(guest.UserId, invitation.id, false)
+		and sessions:host(guest.UserId) == guest and not sessions:canEnter(guest.UserId, host.UserId))
+	check("declined invitations cannot be replayed", not sessions:respond(guest.UserId, invitation.id, true))
+	local _, _, staleInvite = sessions:invite(host.UserId, guest.UserId)
+	local _, _, replacement = sessions:invite(host.UserId, guest.UserId)
+	check("reinviting invalidates the previous token", not sessions:respond(guest.UserId, staleInvite.id, true))
+	check("explicit acceptance authorizes only the invited office", sessions:respond(guest.UserId, replacement.id, true)
+		and sessions:canEnter(guest.UserId, host.UserId) and not sessions:canEnter(guest.UserId, stranger.UserId)
+		and not sessions:canEnter(guest.UserId, guest.UserId))
+	check("co-op host is the original player's identity", sessions:host(guest.UserId) == host
+		and sessions:view(guest.UserId).hostUserId == host.UserId and sessions:view(host.UserId).mode == "coop")
+	check("accepted invitation cannot be replayed", not sessions:respond(guest.UserId, replacement.id, true))
+	check("guests cannot invite, revoke, or change the host's mode", not sessions:invite(guest.UserId, stranger.UserId)
+		and not sessions:revoke(guest.UserId, host.UserId) and not sessions:choose(guest.UserId, "solo"))
+	check("host cannot silently switch an occupied co-op to Solo", not sessions:choose(host.UserId, "solo"))
+	check("host cannot revoke itself", not sessions:revoke(host.UserId, host.UserId))
+	check("host revocation immediately denies office entry", sessions:revoke(host.UserId, guest.UserId)
+		and not sessions:canEnter(guest.UserId, host.UserId) and sessions:canEnter(guest.UserId, guest.UserId))
+	local _, _, cancelled = sessions:invite(host.UserId, guest.UserId)
+	check("owner can revoke an unaccepted invitation", sessions:revoke(host.UserId, guest.UserId)
+		and not sessions:respond(guest.UserId, cancelled.id, true))
+	local _, _, expired = sessions:invite(host.UserId, guest.UserId)
+	clock = expired.expires
+	check("expired offers fail even before the expiry sweep", not sessions:respond(guest.UserId, expired.id, true)
+		and #sessions:view(guest.UserId).invitations == 0)
+	sessions:expire()
+	check("expiry sweep removes stale offers", not sessions:respond(guest.UserId, expired.id, true))
+	local _, _, leaving = sessions:invite(host.UserId, guest.UserId)
+	sessions:respond(guest.UserId, leaving.id, true)
+	check("a guest can leave without the host losing ownership", sessions:leave(guest.UserId)
+		and sessions:host(host.UserId) == host and sessions:host(guest.UserId) == guest)
+	local _, _, hostOffer = sessions:invite(stranger.UserId, host.UserId)
+	local _, _, nested = sessions:invite(host.UserId, guest.UserId)
+	sessions:respond(guest.UserId, nested.id, true)
+	check("hosting guests prevents nesting one party inside another", not sessions:respond(host.UserId, hostOffer.id, true)
+		and sessions:host(host.UserId) == host and sessions:host(guest.UserId) == host)
+	local _, _, guestOffer = sessions:invite(stranger.UserId, guest.UserId)
+	check("accepted transfer leaves the previous host's membership", sessions:respond(guest.UserId, guestOffer.id, true)
+		and not sessions:canEnter(guest.UserId, host.UserId) and sessions:canEnter(guest.UserId, stranger.UserId))
+	sessions:remove(stranger.UserId)
+	check("host disconnect returns members to their private offices", sessions:host(guest.UserId) == guest
+		and sessions:canEnter(guest.UserId, guest.UserId) and not sessions:canEnter(guest.UserId, stranger.UserId))
+	local _, _, reconnectOffer = sessions:invite(host.UserId, guest.UserId)
+	sessions:remove(host.UserId)
+	local replacementHost = { UserId = host.UserId, Name = host.Name, DisplayName = host.DisplayName }
+	sessions:add(replacementHost)
+	sessions:choose(replacementHost.UserId, "solo")
+	check("host rejoin cannot reactivate an old invitation", not sessions:respond(guest.UserId, reconnectOffer.id, true)
+		and not sessions:canEnter(guest.UserId, replacementHost.UserId))
+	local _, _, beforeDisconnect = sessions:invite(replacementHost.UserId, guest.UserId)
+	sessions:respond(guest.UserId, beforeDisconnect.id, true)
+	sessions:remove(guest.UserId)
+	local replacementGuest = { UserId = guest.UserId, Name = guest.Name, DisplayName = guest.DisplayName }
+	sessions:add(replacementGuest)
+	check("guest rejoin resets consent and requires a fresh mode choice", sessions:view(guest.UserId).needsChoice
+		and not sessions:canEnter(guest.UserId, replacementHost.UserId))
+	sessions:choose(guest.UserId, "solo")
+	local _, _, pendingDisconnect = sessions:invite(replacementHost.UserId, guest.UserId)
+	sessions:remove(guest.UserId)
+	sessions:add(guest)
+	sessions:choose(guest.UserId, "solo")
+	check("invite is bound to the original connection", not sessions:respond(guest.UserId, pendingDisconnect.id, true))
+
+	local full = Sessions.new(function() return clock end)
+	full:add(host)
+	full:choose(host.UserId, "coop")
+	local offers = {}
+	for index = 1, 9 do
+		local target = { UserId = 8100 + index, Name = "Party" .. index, DisplayName = "Party" .. index }
+		full:add(target)
+		full:choose(target.UserId, "solo")
+		local _, _, offer = full:invite(host.UserId, target.UserId)
+		offers[index] = offer
+	end
+	for index = 1, 7 do full:respond(offers[index].targetUserId, offers[index].id, true) end
+	check("capacity includes the host and is rechecked on acceptance", #full:view(host.UserId).members == 8
+		and not full:respond(offers[8].targetUserId, offers[8].id, true)
+		and not full:canEnter(offers[8].targetUserId, host.UserId))
+	check("full parties cannot issue further invitations", not full:invite(host.UserId, offers[9].targetUserId))
+end
+
 print("\nPhysical terminal security")
 do
 	local access = require(serverFolder.TerminalAccess)
@@ -951,16 +1062,22 @@ do
 end
 
 print("\nOffice construction and saved roster")
+local promptedTerminals = {}
 do
 	local environment = require(serverFolder.EnvironmentBuilder)
 	local offices = require(serverFolder.OfficeManager)
 	local root = environment.build()
-	offices.start(function() end)
-	local owner = { UserId = 9101, Name = "OfficeTest", DisplayName = "Office Test" }
+	offices.start(function(actor, terminal)
+		promptedTerminals[actor] = terminal
+		require(serverFolder.TerminalAccess).open(actor, terminal)
+	end)
+	local owner = Stub.newPlayer(9101, "OfficeTest")
+	services.Players:Add(owner)
 	PlayerDataManager.load(owner)
 	local profile = PlayerDataManager.get(owner)
 	profile.credits = 1000000000
 	offices.update(owner, OperationManager.view(owner))
+	offices.chooseMode(owner, "solo")
 	local office = root:FindFirstChild("Office_9101")
 	check("starter office has no decorative hired workers", #office.HiredEmployees:GetChildren() == 0)
 	local desk = office:FindFirstChild("CALLS + CAMPAIGNS")
@@ -992,10 +1109,228 @@ do
 	profile.operation.shutdownUntil = os.time() + 60
 	offices.update(owner, OperationManager.view(owner))
 	check("raid losses and shutdown update the visible floor", #office.HiredEmployees:GetChildren() == 0 and office.HiredEmployees:GetAttribute("Paused"))
-	local other = { UserId = 9102, Name = "Other", DisplayName = "Other" }
+	local other = Stub.newPlayer(9102, "Other")
+	services.Players:Add(other)
 	PlayerDataManager.load(other)
 	offices.update(other, OperationManager.view(other))
+	offices.chooseMode(other, "solo")
 	check("players have independent offices", root.Office_9102 ~= office and root.Office_9102.Premises.Floor.Size.Z < office.Premises.Floor.Size.Z)
+end
+
+print("\nPhysical private offices, co-op and independent saves")
+do
+	local offices = require(serverFolder.OfficeManager)
+	local access = require(serverFolder.TerminalAccess)
+	local environment = require(serverFolder.EnvironmentBuilder)
+	local root = environment.getRoot()
+	local travelConnection = offices.Travelling.Event:Connect(function(actor) CallManager.cancel(actor) end)
+	-- Use the same world checks installed by the server bootstrap so accounting
+	-- tests cannot accidentally bypass membership or the physical workstation.
+	CallManager.setContextValidator(function(actor, owner)
+		local current = access.current(actor)
+		return offices.sessionHost(actor) == owner and offices.canEnter(actor, owner.UserId)
+			and current ~= nil and current.terminal.kind == "workstation" and access.valid(actor)
+			and (current.terminal.owner == owner.UserId or (current.terminal.owner == nil and actor == owner))
+	end)
+	local function addActor(uid, name, mode)
+		local actor = Stub.newPlayer(uid, name)
+		services.Players:Add(actor)
+		PlayerDataManager.load(actor)
+		offices.update(actor, OperationManager.view(actor))
+		Stub.spawnCharacter(actor)
+		if mode then offices.chooseMode(actor, mode) end
+		return actor
+	end
+	local function position(actor) return actor.Character.HumanoidRootPart.Position end
+	local function at(actor, point) return (position(actor) - point).Magnitude < 0.01 end
+	local function useComputer(actor, owner, title)
+		local desk = root:FindFirstChild("Office_" .. owner.UserId):FindFirstChild(title)
+		actor.Character:PivotTo(desk.Screen.CFrame * CFrame.new(0, 0, 3))
+		access.remove(actor)
+		promptedTerminals[actor] = nil
+		desk.Screen:FindFirstChildWhichIsA("ProximityPrompt").Triggered:Fire(actor)
+		return promptedTerminals[actor]
+	end
+	local function invite(owner, target)
+		useComputer(owner, owner, "OFFICE MANAGEMENT")
+		local ok = offices.invite(owner, target.UserId)
+		local view = offices.sessionView(target)
+		local offer = view.invitations[#view.invitations]
+		assert(ok and offer, "test fixture could not invite target")
+		return offer.id
+	end
+	local function sameValue(a, b)
+		if type(a) ~= type(b) then return false end
+		if type(a) ~= "table" then return a == b end
+		for key, value in pairs(a) do if not sameValue(value, b[key]) then return false end end
+		for key in pairs(b) do if a[key] == nil then return false end end
+		return true
+	end
+
+	local host = addActor(9201, "PhysicalHost")
+	local guest = addActor(9202, "PhysicalGuest", "solo")
+	local stranger = addActor(9203, "PhysicalStranger", "solo")
+	local lobbyPoint = Vector3.new(0, 4, 44)
+	check("new players stay in the public lobby until a mode is chosen", at(host, lobbyPoint)
+		and not offices.teleport(host) and offices.sessionView(host).needsChoice)
+	check("Solo chooses an owned private office", offices.chooseMode(host, "solo")
+		and offices.canEnter(host, host.UserId) and not at(host, lobbyPoint))
+	local hostSpawn, guestSpawn, strangerSpawn = position(host), position(guest), position(stranger)
+	check("default player spawns are in separate office slots", (hostSpawn - guestSpawn).Magnitude > 100
+		and (guestSpawn - strangerSpawn).Magnitude > 100)
+	check("office ownership attributes use account IDs", root.Office_9201:GetAttribute("OwnerUserId") == host.UserId
+		and host:GetAttribute("OfficeHostUserId") == host.UserId and host:GetAttribute("OfficeMode") == "solo")
+	check("an invite remote without physical management access is rejected", not offices.invite(host, guest.UserId))
+	stranger.Character:PivotTo(host.Character.HumanoidRootPart.CFrame)
+	services.RunService.Heartbeat:Fire(0.2)
+	check("heartbeat ejects an uninvited player from an office", at(stranger, strangerSpawn)
+		and not offices.canEnter(stranger, host.UserId))
+	stranger.Character:PivotTo(CFrame.new(hostSpawn.X, 500, hostSpawn.Z))
+	offices.enforce(stranger)
+	check("flying above another plot cannot bypass authorization", at(stranger, strangerSpawn))
+	stranger.Character:PivotTo(CFrame.new(math.huge, 4, 44))
+	services.RunService.Heartbeat:Fire(0.2)
+	check("heartbeat returns infinite character coordinates to the lobby", at(stranger, lobbyPoint))
+	stranger.Character:PivotTo(CFrame.new(0 / 0, 4, 44))
+	services.RunService.Heartbeat:Fire(0.2)
+	check("heartbeat returns NaN character coordinates to the lobby", at(stranger, lobbyPoint))
+	check("strangers cannot forge a physical workstation prompt", useComputer(stranger, host, "CALLS + CAMPAIGNS") == nil)
+	offices.teleport(stranger)
+	local pending = invite(host, guest)
+	check("management invitation does not move or authorize the target", at(guest, guestSpawn)
+		and not offices.canEnter(guest, host.UserId))
+	check("manager invitation cannot be accepted by another player", not offices.respondInvite(stranger, pending, true))
+	check("uninvited callers cannot select another account as their reward owner", not CallManager.start(stranger, "Easy", host))
+	check("acceptance moves the guest into the host's physical office", offices.respondInvite(guest, pending, true)
+		and at(guest, hostSpawn) and offices.sessionHost(guest) == host)
+	check("accepted membership alone cannot remotely start a call", not CallManager.start(guest, "Easy", host))
+	check("guest attributes identify the active host without changing model ownership", guest:GetAttribute("OfficeHostUserId") == host.UserId
+		and guest:GetAttribute("OfficeMode") == "coop" and root.Office_9202:GetAttribute("OwnerUserId") == guest.UserId)
+	local guestCallTerminal = useComputer(guest, host, "CALLS + CAMPAIGNS")
+	check("invited helpers can physically start calls at the host's computer", guestCallTerminal ~= nil
+		and access.authorize(guest, "StartCall"))
+	access.remove(guest)
+	access.open(guest, guestCallTerminal)
+	check("helpers cannot change campaigns or consume premium items", not access.authorize(guest, "setMethod")
+		and not access.authorize(guest, "UseItem"))
+	for _, spec in ipairs({ { "HR / RECRUITMENT", "hire" }, { "OFFICE MANAGEMENT", "PurchaseUpgrade" },
+		{ "SECURITY / POLICE", "buySecurity" }, { "PREMIUM KIOSK", "PromptPurchase" } }) do
+		useComputer(guest, host, spec[1])
+		check("guests cannot spend through " .. spec[1], not access.authorize(guest, spec[2]))
+	end
+	useComputer(guest, host, "OFFICE MANAGEMENT")
+	check("guests cannot invite or revoke through the host's management computer", not offices.invite(guest, stranger.UserId)
+		and not offices.revokeGuest(guest, host.UserId))
+	local oldCharacter = guest.Character
+	Stub.spawnCharacter(guest)
+	check("respawn retains accepted membership and returns to the host", guest.Character ~= oldCharacter
+		and at(guest, hostSpawn) and offices.canEnter(guest, host.UserId))
+	check("respawning clears previously open terminal sessions", not access.valid(guest))
+	guest.Character:PivotTo(root.Office_9201.LobbyLift.CFrame * CFrame.new(0, 4, 0))
+	access.remove(guest)
+	root.Office_9201.LobbyLift:FindFirstChildWhichIsA("ProximityPrompt").Triggered:Fire(guest)
+	check("an accepted guest can use the physical lift to the shared lobby", at(guest, lobbyPoint))
+	offices.visitLobby(stranger)
+	offices.enforce(stranger)
+	check("public leaderboard lobby remains accessible to everyone", at(stranger, lobbyPoint))
+	access.remove(guest)
+	root.OfficeLift:FindFirstChildWhichIsA("ProximityPrompt").Triggered:Fire(guest)
+	check("the lobby return lift resolves a guest's current host", at(guest, hostSpawn))
+
+	local hostProfile, guestProfile = PlayerDataManager.get(host), PlayerDataManager.get(guest)
+	hostProfile.credits = 40000
+	hostProfile.stats.lifetimeEarnings = 1000000
+	hostProfile.stats.successfulCalls = 400
+	PlayerDataManager.recalculateRank(host)
+	guestProfile.credits = 1234
+	guestProfile.operation.staff = { work_experience = 1 }
+	PlayerDataManager.setPassOwned(guest, "overtime_contract", true)
+	PlayerDataManager.addItem(host, "warm_lead", 1)
+	PlayerDataManager.addItem(guest, "warm_lead", 1)
+	PlayerDataManager.addItem(host, "coffee_refill", 1)
+	PlayerDataManager.addItem(guest, "coffee_refill", 1)
+	local guestSaveBefore = Util.deepCopy(guestProfile)
+	local hostCreditsBefore = hostProfile.credits
+	local hostWinsBefore, hostHeatBefore = hostProfile.stats.successfulCalls, hostProfile.operation.heat
+	useComputer(guest, host, "CALLS + CAMPAIGNS")
+	local sharedStarted = CallManager.start(guest, "Hard", offices.sessionHost(guest))
+	local sharedCall = CallManager.getState(guest)
+	check("guest call difficulty and bonuses come from the host's progression", sharedStarted and sharedCall ~= nil
+		and sharedCall.bonuses.rewardMul == PlayerDataManager.getBonuses(host).rewardMul)
+	check("shared calls never auto-consume either player's paid warm lead", hostProfile.premium.inventory.warm_lead == 1
+		and guestProfile.premium.inventory.warm_lead == 1)
+	check("guest cannot spend either account's consumables on a shared call", not CallManager.useItem(guest, "coffee_refill")
+		and hostProfile.premium.inventory.coffee_refill == 1 and guestProfile.premium.inventory.coffee_refill == 1)
+	CallManager.finish(sharedCall, "success")
+	check("guest calls credit the host's money, progression and heat", hostProfile.credits > hostCreditsBefore
+		and hostProfile.stats.successfulCalls == hostWinsBefore + 1 and hostProfile.operation.heat > hostHeatBefore)
+	check("co-op help leaves the guest's entire permanent profile unchanged", sameValue(guestProfile, guestSaveBefore)
+		and PlayerDataManager.get(host) ~= PlayerDataManager.get(guest))
+	CallManager.start(guest, "Easy", host)
+	local distantCall = CallManager.getState(guest)
+	local beforeWalkingAway = hostProfile.credits
+	guest.Character:PivotTo(CFrame.new(hostSpawn.X, hostSpawn.Y, hostSpawn.Z + 70))
+	CallManager.finish(distantCall, "success")
+	check("moving away invalidates the reward context before final settlement", hostProfile.credits == beforeWalkingAway
+		and CallManager.getState(guest) == nil)
+	useComputer(guest, host, "CALLS + CAMPAIGNS")
+	CallManager.start(guest, "Easy", host)
+	local revokedCall = CallManager.getState(guest)
+	local beforeRevoke = hostProfile.credits
+	useComputer(host, host, "OFFICE MANAGEMENT")
+	check("revocation returns a guest to its own office immediately", offices.revokeGuest(host, guest.UserId)
+		and at(guest, guestSpawn) and not offices.canEnter(guest, host.UserId))
+	check("revocation cancels the live shared call and terminal session", CallManager.getState(guest) == nil
+		and not access.valid(guest))
+	CallManager.finish(revokedCall, "success")
+	check("a cancelled call cannot pay a stale delayed result", hostProfile.credits == beforeRevoke
+		and sameValue(guestProfile, guestSaveBefore))
+	guest.Character:PivotTo(guestCallTerminal.anchor.CFrame * CFrame.new(0, 0, 3))
+	check("old workstation specifications recheck revoked membership", not access.open(guest, guestCallTerminal))
+	offices.enforce(guest)
+	check("revoked players cannot walk or teleport back into the host plot", at(guest, guestSpawn))
+
+	local disconnectInvite = invite(host, guest)
+	offices.respondInvite(guest, disconnectInvite, true)
+	useComputer(guest, host, "CALLS + CAMPAIGNS")
+	CallManager.start(guest, "Easy", host)
+	local removedOrigin = root.Office_9201.Premises.Floor.Position
+	services.Players:Remove(host)
+	check("host disconnect clears membership, calls and the physical office", root:FindFirstChild("Office_9201") == nil
+		and offices.sessionHost(guest) == guest and at(guest, guestSpawn) and CallManager.getState(guest) == nil)
+	local newOwner = addActor(9204, "ReplacementPlotOwner", "solo")
+	check("freed slots can be reused without inheriting consent", (root.Office_9204.Premises.Floor.Position - removedOrigin).Magnitude < 0.01
+		and not offices.canEnter(guest, newOwner.UserId))
+	guest.Character:PivotTo(newOwner.Character.HumanoidRootPart.CFrame)
+	offices.enforce(guest)
+	check("a reused plot still ejects the previous host's guest", at(guest, guestSpawn))
+	local newHost = addActor(host.UserId, "HostRejoined")
+	check("host rejoin starts a fresh private session", offices.sessionView(newHost).needsChoice
+		and not offices.canEnter(guest, newHost.UserId) and at(newHost, lobbyPoint))
+	offices.chooseMode(newHost, "coop")
+	local rejoinInvite = invite(newHost, guest)
+	offices.respondInvite(guest, rejoinInvite, true)
+	useComputer(newHost, newHost, "CALLS + CAMPAIGNS")
+	assert(CallManager.start(newHost, "Easy", newHost), "test fixture could not start the host's call")
+	local hostCallBeforeGuestDisconnect = CallManager.getState(newHost)
+	local hostPointBeforeGuestDisconnect = position(newHost)
+	services.Players:Remove(guest)
+	check("guest disconnect removes it from the host's member list", #offices.sessionView(newHost).members == 1)
+	check("guest disconnect preserves the host's position and live call", at(newHost, hostPointBeforeGuestDisconnect)
+		and CallManager.getState(newHost) == hostCallBeforeGuestDisconnect and not hostCallBeforeGuestDisconnect.ended)
+	local newGuest = addActor(guest.UserId, "GuestRejoined")
+	check("guest rejoin neither restores consent nor skips session choice", offices.sessionView(newGuest).needsChoice
+		and offices.sessionHost(newGuest) == newGuest and not offices.canEnter(newGuest, newHost.UserId)
+		and at(newGuest, lobbyPoint) and not offices.respondInvite(newGuest, rejoinInvite, true))
+	check("a disconnected player object cannot regain an office", not offices.canEnter(guest, newHost.UserId))
+	offices.chooseMode(newGuest, "solo")
+	local freshOffice = root:FindFirstChild("Office_" .. newGuest.UserId)
+	offices.remove(guest)
+	check("late cleanup of an old Player cannot remove a rejoined session", offices.canEnter(newGuest, newGuest.UserId)
+		and root:FindFirstChild("Office_" .. newGuest.UserId) == freshOffice and offices.sessionHost(newGuest) == newGuest)
+	CallManager.cancel(newHost)
+	travelConnection:Disconnect()
+	CallManager.setContextValidator(nil)
 end
 
 print("")

@@ -26,6 +26,17 @@ local HeatManager = require(script.Parent.HeatManager)
 local CallManager = {}
 
 local calls: { [number]: any } = {}
+local contextValidator
+
+-- Installed by the bootstrap. Tests can exercise accounting without world APIs.
+function CallManager.setContextValidator(validate)
+	contextValidator = validate
+end
+
+local function validContext(state)
+	return PlayerDataManager.get(state.accountOwner or state.player) ~= nil
+		and (not contextValidator or contextValidator(state.player, state.accountOwner or state.player))
+end
 
 CallManager.CallFinished = Instance.new("BindableEvent")
 
@@ -206,8 +217,10 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 	if state.ended then
 		return
 	end
+	if not validContext(state) then CallManager.cancel(state.player); return end
 	state.ended = true
 	local player = state.player
+	local owner = state.accountOwner or player
 	calls[player.UserId] = nil
 
 	local duration = state.elapsed
@@ -229,11 +242,11 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 		difficulty = state.difficultyKey,
 	}
 
-	local reward, breakdown = RewardManager.award(player, result)
+	local reward, breakdown = RewardManager.award(owner, result)
 
 	-- Every call leaves a trace. Ringing an actual police station leaves rather
 	-- more of one.
-	local profile = PlayerDataManager.get(player)
+	local profile = PlayerDataManager.get(owner)
 	if profile and profile.operation then
 		local heat = 0
 		if state.npc.personalityId == "police_desk" then
@@ -249,7 +262,7 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 		end
 	end
 
-	local unlocked = AchievementManager.evaluate(player, result)
+	local unlocked = AchievementManager.evaluate(owner, result)
 
 	local achievementViews = {}
 	for _, a in ipairs(unlocked) do
@@ -281,10 +294,12 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 		breakdown = breakdown,
 		achievements = achievementViews,
 		perfect = state.perfect,
+		accountOwnerUserId = owner.UserId,
+		accountOwnerName = owner.DisplayName,
 	})
 
-	CallManager.CallFinished:Fire(player, result, reward)
-	PlayerDataManager.notify(player)
+	CallManager.CallFinished:Fire(owner, result, reward, player)
+	PlayerDataManager.notify(owner)
 end
 
 function CallManager.resolve(state)
@@ -305,11 +320,13 @@ end
 -- Player actions
 --------------------------------------------------------------------------------
 
-function CallManager.start(player: Player, difficultyKey: string): (boolean, string)
+function CallManager.start(player: Player, difficultyKey: string, accountOwner: Player?): (boolean, string)
 	if calls[player.UserId] then
 		return false, "You are already on a call."
 	end
-	local data = PlayerDataManager.get(player)
+	local owner = accountOwner or player
+	if contextValidator and not contextValidator(player, owner) then return false, "Office access is no longer valid." end
+	local data = PlayerDataManager.get(owner)
 	if not data then
 		return false, "Your profile is still loading."
 	end
@@ -320,15 +337,17 @@ function CallManager.start(player: Player, difficultyKey: string): (boolean, str
 		return false, level.label .. " difficulty unlocks at " .. needed.name .. "."
 	end
 
-	local bonuses = PlayerDataManager.getBonuses(player)
+	local bonuses = PlayerDataManager.getBonuses(owner)
 	local rank = Ranks.get(data.rankIndex)
 
 	-- Warm Lead is spent at connect time, before the caller is rolled.
-	local warmLead = PlayerDataManager.consumeItem(player, "warm_lead")
+	-- Guests never consume either player's paid inventory on a shared call.
+	local warmLead = owner == player and PlayerDataManager.consumeItem(player, "warm_lead")
 	local npc = NPCGenerator.generate(level.key, bonuses, nil, { warmLead = warmLead })
 
 	local state = {
 		player = player,
+		accountOwner = owner,
 		npc = npc,
 		difficultyKey = level.key,
 		bonuses = bonuses,
@@ -356,7 +375,7 @@ function CallManager.start(player: Player, difficultyKey: string): (boolean, str
 	}
 	calls[player.UserId] = state
 
-	PlayerDataManager.setDifficulty(player, level.key)
+	if owner == player then PlayerDataManager.setDifficulty(player, level.key) end
 
 	if warmLead then
 		Net.event("Notify"):FireClient(player, {
@@ -379,6 +398,7 @@ function CallManager.choose(player: Player, index: number)
 	if not state or state.ended then
 		return
 	end
+	if not validContext(state) then CallManager.cancel(player); return end
 	local source = state.currentSource
 	if not source then
 		return
@@ -467,6 +487,8 @@ function CallManager.useItem(player: Player, productId: string): (boolean, strin
 	if not state or state.ended then
 		return false, "You are not on a call."
 	end
+	if not validContext(state) then CallManager.cancel(player); return false, "Office access ended." end
+	if state.accountOwner ~= player then return false, "Only the host can use paid consumables in this office." end
 	if (PlayerDataManager.get(player) == nil) then
 		return false, "Your profile is still loading."
 	end
@@ -500,6 +522,15 @@ function CallManager.getState(player: Player)
 	return calls[player.UserId]
 end
 
+-- Session transitions never pay consolation or record a completed call.
+function CallManager.cancel(player: Player)
+	local state = calls[player.UserId]
+	if not state then return end
+	state.ended = true
+	calls[player.UserId] = nil
+	Net.event("CallCancelled"):FireClient(player)
+end
+
 --------------------------------------------------------------------------------
 -- Timer / patience drain
 --------------------------------------------------------------------------------
@@ -512,6 +543,7 @@ function CallManager.beginRuntime()
 			accumulator += dt
 			for userId, state in pairs(calls) do
 				if not state.ended then
+					if not validContext(state) then CallManager.cancel(state.player); continue end
 					state.elapsed = os.clock() - state.startClock
 
 					-- Patience drains with time as well as with choices.

@@ -2,13 +2,18 @@
 
 Four ways in, fastest first.
 
-## 1.4.0 validation and physical-terminal checklist
+## 1.5.0 validation and physical-terminal checklist
 
 Automated checks run against the real Luau modules with `tests/RobloxStub.luau`:
 the original 1,200-call simulation, economy/raid/premium regressions, terminal
 ownership, permissions, rate limits, range, line of sight, death/respawn,
 invalid numeric inputs, rank pagination/ties/failures, all seven office sizes,
-90 workers, roster changes and independent player offices. The stub checks
+90 workers, roster changes and independent player offices. Co-op regressions
+cover explicit acceptance, wrong-recipient/replayed/expired invitations,
+revocation, nested ownership and party limits, unauthorized plot entry (including
+flying), physical prompt permissions, lobby travel, respawn, disconnect/rejoin,
+slot reuse, host call accounting, guest save isolation and cancelled-call payouts.
+The stub checks
 construction and state; it does not render Roblox or simulate physics.
 
 Run `./tests/run.ps1` on Windows or `./tests/run.sh` with the existing Unix
@@ -18,8 +23,8 @@ Both regenerate the place/model and installer manifest from `src/`.
 Live Roblox Studio rendering, multiplayer networking and live DataStore ranks
 still require this playtest; they were not verified by the headless run:
 
-1. Start a two-player local server. Both players should spawn in separate small
-   offices with empty staff desks. Use the cyan Calls + Campaigns computer;
+1. Start a two-player local server. Choose Solo on each client. Both players
+   should enter separate small offices with empty staff desks. Use the cyan Calls + Campaigns computer;
    choose a difficulty and start a call. All dialogue/choices/rewards remain.
 2. Walk away during a call, reset the character, then try an action from the old
    panel. The line must disconnect and the panel close. A remote StartCall or
@@ -45,6 +50,43 @@ still require this playtest; they were not verified by the headless run:
    camera visibility at the intended device sizes before publishing.
 
 The source branch has not been merged or the Roblox experience published.
+
+### Invite-only co-op Studio checklist
+
+1. Start a three-player local server. Check the Solo / Host Co-op chooser on
+   desktop, phone and controller. Both choices must remain private without
+   accepted invitations. Before selection, remain in the public lobby.
+2. At the host's Management computer, use Invite / Access. Sending an invitation
+   must not move the recipient or grant entry. Decline once, let one expire,
+   then accept a fresh offer. Only the addressed recipient may accept it.
+3. The accepted guest should appear in the host's office. Check its host label,
+   income and heat display. Start calls from the host workstation with both
+   clients. Rewards, heat, ranks and achievements go to the host; the guest's
+   own saved call stats, settings, inventory, receipts and purchases stay separate.
+   Personal passive income continues independently under each player's own ID.
+4. Guests must not buy upgrades, hire/fire, select campaigns, use paid items or
+   open premium purchases through the host's terminals or the lobby showroom.
+   Calling from an old prompt after walking away must not settle a reward.
+5. Move the uninvited third player into the host plot using a server test teleport,
+   including above its roof. They must be returned to their authorized office
+   (or lobby), and must never gain terminal access. Repeat before accepting an
+   invite and after revocation. Do not test this against strangers/live saves.
+6. Revoke an active guest at Management. They must immediately return home;
+   any pending call must cancel without delayed payout. Reinvite, accept and
+   then use Leave co-op on the guest's Management panel to return home.
+7. Reset an accepted guest's character and visit/return from the shared boards:
+   each flow should return to the host's office, not the guest's personal plot.
+8. Disconnect a guest while the host is on a call: the host must not move or
+   lose that call. Disconnect the host: guests return to their own offices and
+   active shared calls cancel. Rejoin either player and verify fresh consent is
+   required, old invitations cannot be replayed, and recycled slots stay private.
+9. Save and rejoin with separate seeded profiles. Confirm no credits, staff,
+   upgrades, passes, consumables or receipt records were copied between users.
+
+Headless tests do not validate rendered UI, real Roblox replication/physics,
+Marketplace receipts or live DataStore persistence. Complete this checklist in
+Studio before publishing. Use the local generated place or Rojo for unpushed
+changes; the GitHub installer can only retrieve changes already pushed.
 
 ---
 

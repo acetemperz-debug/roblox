@@ -158,6 +158,12 @@
 			"target": "server"
 		},
 		{
+			"path": "src/server/OfficeSessions.luau",
+			"name": "OfficeSessions",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
 			"path": "src/server/OperationManager.luau",
 			"name": "OperationManager",
 			"class": "ModuleScript",
@@ -209,6 +215,12 @@
 			"path": "src/client/MacrosoftClient.client.luau",
 			"name": "MacrosoftClient",
 			"class": "LocalScript",
+			"target": "client"
+		},
+		{
+			"path": "src/client/OfficeSessionUI.luau",
+			"name": "OfficeSessionUI",
+			"class": "ModuleScript",
 			"target": "client"
 		},
 		{

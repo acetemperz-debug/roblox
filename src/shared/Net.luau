@@ -22,6 +22,7 @@ local EVENTS = {
 	"SetAlias", -- (alias: string)
 	"OperationAction", -- (action: string, a: any?, b: any?)
 	"CloseTerminal",
+	"OfficeAction", -- choose / invite / respond / revoke / leave; no client-selected reward owner
 
 	-- Server -> Client
 	"CallStarted", -- (callView)
@@ -39,6 +40,9 @@ local EVENTS = {
 	"TerminalOpened", -- server-authorised physical terminal session
 	"TerminalClosed",
 	"LeaderboardRank", -- personal row on the physical board
+	"OfficeSessionUpdated",
+	"OfficeDataUpdated", -- host summary only; personal DataUpdated is never replaced
+	"CallCancelled",
 }
 
 local FUNCTIONS = {
@@ -46,6 +50,7 @@ local FUNCTIONS = {
 	"GetCatalog", -- () -> {upgrades, ranks, achievements, difficulties}
 	"GetStore", -- () -> {passes, products}
 	"GetOperation", -- () -> operationView
+	"GetOfficeSession",
 }
 
 local Net = {}

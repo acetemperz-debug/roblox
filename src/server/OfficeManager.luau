@@ -1,15 +1,21 @@
 --!nonstrict
 -- Physical presentation of the existing saved operation; never computes rewards.
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
 local Operation = require(Shared.Operation)
 local Util = require(Shared.Util)
 local Environment = require(script.Parent.EnvironmentBuilder)
 local Data = require(script.Parent.PlayerDataManager)
 local Access = require(script.Parent.TerminalAccess)
+local Sessions = require(script.Parent.OfficeSessions)
 local OfficeManager = {}
 local offices, slots = {}, {}
+local policy = Sessions.new()
+local removing = setmetatable({}, { __mode = "k" })
 local onTerminal
+OfficeManager.SessionChanged = Instance.new("BindableEvent")
+OfficeManager.Travelling = Instance.new("BindableEvent")
 local cyan = Color3.fromRGB(30, 225, 235)
 local gold = Color3.fromRGB(255, 191, 60)
 local pink = Color3.fromRGB(244, 75, 175)
@@ -40,7 +46,18 @@ local function terminal(office, kind, title, x, z, colour, canUse)
 	prompt.RequiresLineOfSight = false -- server raycast is authoritative
 	prompt.HoldDuration = 0.2
 	prompt.Parent = anchor
-	local spec = { kind = kind, anchor = anchor, model = desk, owner = office.player.UserId, canUse = canUse }
+	local spec = { kind = kind, anchor = anchor, model = desk, owner = office.player.UserId,
+		canAccess = function(player) return OfficeManager.canEnter(player, office.player.UserId) end,
+		canUse = function(player)
+			return (player.UserId == office.player.UserId or kind == "workstation" or kind == "management")
+				and (not canUse or canUse(player))
+		end,
+		canAct = function(player, action)
+			if player.UserId == office.player.UserId then return true end
+			-- Invited helpers make calls and inspect access controls; spending remains host-only.
+			return kind == "workstation" and (action == "StartCall" or action == "ChooseOption" or action == "SetDifficulty")
+		end,
+	}
 	prompt.Triggered:Connect(function(player)
 		if Access.throttle(player, "prompt", 0.4) and Access.near(player, spec) then onTerminal(player, spec) end
 	end)
@@ -73,20 +90,173 @@ local function create(player)
 	prompt.MaxActivationDistance = 8
 	prompt.Parent = exit
 	prompt.Triggered:Connect(function(visitor)
-		if Access.near(visitor, { anchor = exit, distance = 8 }) and Access.throttle(visitor, "travel", 2) then
-			visitor.Character:PivotTo(CFrame.new(0, 4, 44))
+		if OfficeManager.canEnter(visitor, player.UserId) and Access.near(visitor, { anchor = exit, distance = 8 }) and Access.throttle(visitor, "travel", 2) then
+			OfficeManager.visitLobby(visitor)
 		end
 	end)
 	return office
 end
 
+function OfficeManager.sessionHost(player)
+	return policy:host(player.UserId)
+end
+
+function OfficeManager.canEnter(player, ownerId)
+	local record = policy:get(player.UserId)
+	return record ~= nil and record.player == player and not removing[player] and policy:canEnter(player.UserId, ownerId)
+end
+
+local function travel(player, cf)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then return false end
+	OfficeManager.Travelling:Fire(player)
+	Access.close(player)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	character:PivotTo(cf)
+	return true
+end
+
 function OfficeManager.teleport(player)
+	local host = OfficeManager.sessionHost(player)
+	local office = host and offices[host]
+	if not office or not OfficeManager.canEnter(player, host.UserId) then return false end
+	return travel(player, office.origin * CFrame.new(0, 4, 9))
+end
+
+function OfficeManager.visitLobby(player)
+	return travel(player, CFrame.new(0, 4, 44))
+end
+
+function OfficeManager.canManageAccess(player)
+	local current = Access.current(player)
+	return OfficeManager.sessionHost(player) == player and current ~= nil and Access.valid(player)
+		and current.terminal.kind == "management" and current.terminal.owner == player.UserId
+end
+
+function OfficeManager.sessionView(player)
+	local view = policy:view(player.UserId)
+	if not view then return nil end
+	view.canManageAccess = OfficeManager.canManageAccess(player)
+	view.candidates = {}
+	if view.canManageAccess then
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and not OfficeManager.canEnter(other, player.UserId) then
+				table.insert(view.candidates, { userId = other.UserId, name = other.DisplayName })
+			end
+		end
+	end
+	return view
+end
+
+local function changed(ids)
+	for _, id in ipairs(ids) do
+		local record = policy:get(id)
+		if record then
+			if record.player.SetAttribute then
+				record.player:SetAttribute("OfficeHostUserId", record.hostUserId)
+				record.player:SetAttribute("OfficeMode", record.mode or "pending")
+			end
+			OfficeManager.SessionChanged:Fire(record.player, OfficeManager.sessionView(record.player))
+		end
+	end
+end
+
+function OfficeManager.chooseMode(player, mode)
+	local ok, message = policy:choose(player.UserId, mode)
+	if ok then
+		changed({ player.UserId })
+		OfficeManager.teleport(player)
+	end
+	return ok, message
+end
+
+function OfficeManager.invite(player, targetId)
+	if not OfficeManager.canManageAccess(player) then return false, "Use your own management computer to invite." end
+	local ok, message = policy:invite(player.UserId, targetId)
+	if ok then changed({ player.UserId, targetId }) end
+	return ok, message
+end
+
+function OfficeManager.respondInvite(player, id, accept)
+	local ok, message, ids = policy:respond(player.UserId, id, accept)
+	if ok and accept then OfficeManager.teleport(player) end
+	changed(ids or { player.UserId })
+	return ok, message
+end
+
+function OfficeManager.revokeGuest(player, targetId)
+	if not OfficeManager.canManageAccess(player) then return false, "Use your own management computer to remove guests." end
+	local guest = policy:get(targetId)
+	local wasMember = guest and guest.hostUserId == player.UserId
+	local ok, message, ids = policy:revoke(player.UserId, targetId)
+	if ok and wasMember then
+		if not OfficeManager.teleport(guest.player) then OfficeManager.visitLobby(guest.player) end
+	end
+	changed(ids or {})
+	return ok, message
+end
+
+function OfficeManager.leaveSession(player)
+	local ok, message, ids = policy:leave(player.UserId)
+	if ok then
+		if not OfficeManager.teleport(player) then OfficeManager.visitLobby(player) end
+	end
+	changed(ids or {})
+	return ok, message
+end
+
+-- World entry is authorised separately from prompts. This also catches players
+-- pushed, flown or teleported across a plot wall without using a lift.
+function OfficeManager.enforce(player)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	local position = root.Position
+	if not (math.abs(position.X) < math.huge and math.abs(position.Y) < math.huge and math.abs(position.Z) < math.huge) then
+		OfficeManager.visitLobby(player)
+		return
+	end
+	for owner, office in pairs(offices) do
+		local p = office.origin:PointToObjectSpace(position)
+		-- A fixed envelope covers the largest office and its exterior at every tier.
+		if math.abs(p.X) <= 104 and p.Z >= -90 and p.Z <= 144 then
+			if not OfficeManager.canEnter(player, owner.UserId) then
+				if not OfficeManager.teleport(player) then OfficeManager.visitLobby(player) end
+			end
+			return
+		end
+	end
+end
+
+function OfficeManager.remove(player)
+	removing[player] = true
+	OfficeManager.Travelling:Fire(player)
+	Access.remove(player)
+	local departing = policy:get(player.UserId)
+	local isCurrent = departing and departing.player == player
+	local wasHost = isCurrent and departing.hostUserId == player.UserId
+	local affected = isCurrent and policy:remove(player.UserId) or {}
+	for _, id in ipairs(affected) do
+		local record = policy:get(id)
+		-- Guests of a disconnected host now belong to their own solo office.
+		-- A guest disconnect must not relocate the surviving host or cancel their call.
+		if wasHost and record and record.hostUserId == id then
+			if not OfficeManager.teleport(record.player) then OfficeManager.visitLobby(record.player) end
+		end
+	end
 	local office = offices[player]
-	if office and player.Character then player.Character:PivotTo(office.origin * CFrame.new(0, 4, 9)) end
+	if office then
+		Environment.removeEmployees(office.model)
+		office.model:Destroy()
+		slots[office.slot], offices[player] = nil, nil
+	end
+	changed(affected)
 end
 
 function OfficeManager.update(player, view)
-	if not view then return end
+	if not view or removing[player] then return end
+	policy:add(player)
 	local firstVisit = offices[player] == nil
 	local office = offices[player] or create(player)
 	local profile = Data.get(player)
@@ -186,7 +356,10 @@ function OfficeManager.update(player, view)
 		end
 	end
 	office.staff:SetAttribute("Paused", paused)
-	if firstVisit then OfficeManager.teleport(player) end
+	if firstVisit then
+		changed({ player.UserId })
+		if OfficeManager.sessionHost(player) == player then OfficeManager.teleport(player) end
+	end
 end
 
 function OfficeManager.start(callback)
@@ -202,25 +375,33 @@ function OfficeManager.start(callback)
 		if Access.near(player, { anchor = lift }) and Access.throttle(player, "travel", 2) then OfficeManager.teleport(player) end
 	end)
 	local function joined(player)
-		player.CharacterAdded:Connect(function(character)
+		removing[player] = nil
+		policy:add(player)
+		local function respawned(character)
 			task.spawn(function()
 				local root = character:WaitForChild("HumanoidRootPart", 15)
-				local deadline = os.clock() + 30
-				while player.Parent and not offices[player] and os.clock() < deadline do task.wait(0.2) end
-				if root and player.Character == character then OfficeManager.teleport(player) end
+				if root and player.Character == character and not removing[player] then
+					if not OfficeManager.teleport(player) then OfficeManager.visitLobby(player) end
+					changed({ player.UserId })
+				end
 			end)
-		end)
+		end
+		player.CharacterAdded:Connect(respawned)
+		if player.Character then respawned(player.Character) end
+		changed({ player.UserId })
 	end
 	Players.PlayerAdded:Connect(joined)
 	for _, player in ipairs(Players:GetPlayers()) do joined(player) end
-	Players.PlayerRemoving:Connect(function(player)
-		local office = offices[player]
-		if office then
-			Environment.removeEmployees(office.model)
-			office.model:Destroy()
-			slots[office.slot] = nil
-			offices[player] = nil
+	Players.PlayerRemoving:Connect(OfficeManager.remove)
+	local elapsed, expiryElapsed = 0, 0
+	RunService.Heartbeat:Connect(function(dt)
+		elapsed += dt
+		expiryElapsed += dt
+		if elapsed >= 0.1 then
+			elapsed = 0
+			for _, player in ipairs(Players:GetPlayers()) do OfficeManager.enforce(player) end
 		end
+		if expiryElapsed >= 1 then expiryElapsed = 0; changed(policy:expire()) end
 	end)
 end
 

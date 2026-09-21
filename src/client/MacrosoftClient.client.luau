@@ -15,6 +15,7 @@ local Juice = require(script.Parent.Juice)
 local T = UIKit.Theme
 
 local ui = Interface.build()
+require(script.Parent.OfficeSessionUI).init(ui)
 Juice.init(ui.gui)
 Juice.attachTicker(ui.ticker.frame, ui.ticker.label)
 
@@ -29,6 +30,8 @@ local state = {
 	store = nil,
 	operation = nil,
 	terminal = nil,
+	terminalGuest = false,
+	officeData = nil,
 }
 
 --------------------------------------------------------------------------------
@@ -119,7 +122,8 @@ local difficultyButtons = {}
 
 local function refreshDifficultyButtons()
 	for key, entry in pairs(difficultyButtons) do
-		local unlocked = state.data ~= nil and state.data.rankIndex >= entry.info.minRankIndex
+		local account = state.officeData or state.data
+		local unlocked = account ~= nil and account.rankIndex >= entry.info.minRankIndex
 		local selected = state.difficulty == key
 		entry.button.Active = unlocked
 		entry.button.AutoButtonColor = false
@@ -1297,7 +1301,9 @@ local function applyData(data)
 		return
 	end
 	state.data = data
-	state.difficulty = data.settings.difficulty or state.difficulty
+	if not state.officeData or state.officeData.hostUserId == game:GetService("Players").LocalPlayer.UserId then
+		state.difficulty = data.settings.difficulty or state.difficulty
+	end
 	ui.topBar.credits.Text = Util.formatNumber(data.credits) .. " Credits"
 	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and ("   ⚠ " .. (data.saveNote or "not saving")) or "")
 	ui.topBar.rank.TextColor3 = data.saveDisabled and T.Danger or T.SubText
@@ -1331,7 +1337,21 @@ local function applyData(data)
 	if ui.career.frame.Visible then
 		renderCareer()
 	end
+	if state.officeData and state.officeData.hostUserId ~= game:GetService("Players").LocalPlayer.UserId then
+		ui.topBar.credits.Text = Util.formatNumber(state.officeData.credits) .. " Office Cr"
+		ui.topBar.rank.Text = "Host: " .. state.officeData.hostName .. " | " .. state.officeData.rankName
+		ui.topBar.boost.Visible = false
+	end
 end
+
+Net.event("OfficeDataUpdated").OnClientEvent:Connect(function(view)
+	if not view then return end
+	state.officeData = view
+	ui.topBar.credits.Text = Util.formatNumber(view.credits) .. " Office Cr"
+	ui.topBar.rank.Text = (view.hostUserId ~= game:GetService("Players").LocalPlayer.UserId and ("Host: " .. view.hostName .. " | ") or "")
+		.. view.rankName .. (view.saveDisabled and " | Saving unavailable" or "")
+	refreshDifficultyButtons()
+end)
 
 local function refreshCatalog()
 	local ok, catalog = pcall(function()
@@ -1387,6 +1407,7 @@ local function showTerminalPage(secondary)
 	local kind = state.terminal
 	if not kind or state.inCall then return end
 	hideTerminalPanels()
+	if state.terminalGuest and kind ~= "workstation" then return end
 	if kind == "workstation" and not secondary then
 		ui.home.frame.Visible = true
 		return
@@ -1414,10 +1435,12 @@ end
 Net.event("TerminalOpened").OnClientEvent:Connect(function(payload)
 	terminalRevision += 1
 	state.terminal = payload.kind
+	state.terminalGuest = payload.isGuest == true
 	ui.terminal.frame.Visible = true
 	ui.terminal.title.Text = string.upper(payload.kind) .. " COMPUTER"
 	ui.terminal.primary.Visible = payload.kind == "workstation" or payload.kind == "management"
 	ui.terminal.secondary.Visible = ui.terminal.primary.Visible
+	if state.terminalGuest then ui.terminal.primary.Visible = false; ui.terminal.secondary.Visible = false end
 	ui.terminal.primary.Text = payload.kind == "workstation" and "Calls" or "Premises"
 	ui.terminal.secondary.Text = payload.kind == "workstation" and "Campaigns" or "Desk Upgrades"
 	showTerminalPage(false)
@@ -1532,6 +1555,9 @@ end)
 Net.event("CallEnded").OnClientEvent:Connect(function(payload)
 	exitCall()
 	renderResult(payload)
+	if payload.accountOwnerUserId and payload.accountOwnerUserId ~= game:GetService("Players").LocalPlayer.UserId then
+		toast("Host Office Progress", "This call's reward and progression went to " .. payload.accountOwnerName .. ".", "success")
+	end
 	task.spawn(function()
 		refreshCatalog()
 		refreshStore()
@@ -1540,6 +1566,12 @@ end)
 
 Net.event("Notify").OnClientEvent:Connect(function(payload)
 	toast(payload.title, payload.body, payload.kind)
+end)
+
+Net.event("CallCancelled").OnClientEvent:Connect(function()
+	exitCall()
+	ui.result.frame.Visible = false
+	state.typing = (state.typing or 0) + 1
 end)
 
 Net.event("AchievementUnlocked").OnClientEvent:Connect(function(achievement)
@@ -1643,9 +1675,10 @@ task.spawn(function()
 				rate = -view.summary.heatDecay
 			end
 			view.heat = math.clamp(view.heat + rate * 0.25, 0, view.heatMax)
-			if running and state.data and (view.layLowRemaining or 0) <= 0 then
-				state.data.credits += view.summary.netIncome * 0.25
-				ui.topBar.credits.Text = Util.formatNumber(state.data.credits) .. " Credits"
+			local wallet = state.officeData or state.data
+			if running and wallet and (view.layLowRemaining or 0) <= 0 then
+				wallet.credits += view.summary.netIncome * 0.25
+				ui.topBar.credits.Text = Util.formatNumber(wallet.credits) .. " Office Cr"
 			end
 			renderOperationHud()
 		end

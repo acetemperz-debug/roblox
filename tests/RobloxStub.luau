@@ -75,17 +75,27 @@ function methods:Destroy()
 end
 
 function methods:Connect(fn)
-	table.insert(rawget(self, "_connections"), fn)
-	return { Disconnect = function() end }
+	local connections = rawget(self, "_connections")
+	table.insert(connections, fn)
+	return { Disconnect = function()
+		local index = table.find(connections, fn)
+		if index then table.remove(connections, index) end
+	end }
 end
 
 function methods:Fire(...)
-	local event = rawget(self, "Event")
-	if event then
-		for _, fn in ipairs(rawget(event, "_connections")) do
-			fn(...)
-		end
+	local event = rawget(self, "Event") or self
+	for _, fn in ipairs(table.clone(rawget(event, "_connections"))) do
+		fn(...)
 	end
+end
+
+function methods:PivotTo(frame)
+	local root = self:FindFirstChild("HumanoidRootPart") or self.PrimaryPart
+	assert(root, "simulator: PivotTo requires a root part")
+	root.CFrame = frame
+	root.Position = frame.Position
+	self._pivot = frame
 end
 
 function methods:FireClient(_player, ...)
@@ -160,6 +170,35 @@ end
 
 Stub.newInstance = newInstance
 
+function Stub.newPlayer(userId, name)
+	local player = newInstance("Player")
+	player.UserId = userId
+	player.Name = name or ("Player" .. userId)
+	player.DisplayName = player.Name
+	player.CharacterAdded = newInstance("BindableEvent").Event
+	return player
+end
+
+function Stub.spawnCharacter(player, frame)
+	local character = newInstance("Model")
+	character.Name = player.Name
+	local root = newInstance("Part")
+	root.Name = "HumanoidRootPart"
+	root.CFrame = frame or CFrame.new(0, 4, 44)
+	root.Position = root.CFrame.Position
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	root.Parent = character
+	character.PrimaryPart = root
+	local humanoid = newInstance("Humanoid")
+	humanoid.Health = 100
+	humanoid.Parent = character
+	character.Parent = workspace
+	player.Character = character
+	player.CharacterAdded:Fire(character)
+	return character
+end
+
 -- Everything a RemoteEvent sent to a client during the test run.
 function Stub.drain(remote)
 	local log = rawget(remote, "_log")
@@ -183,16 +222,29 @@ function Stub.install()
 	services.ReplicatedStorage = folder("ReplicatedStorage")
 	services.Workspace = folder("Workspace")
 	services.Lighting = folder("Lighting")
+	local connectedPlayers = {}
 	services.Players = {
-		GetPlayers = function()
-			return {}
-		end,
-		PlayerAdded = { Connect = function() end },
-		PlayerRemoving = { Connect = function() end },
-		GetPlayerByUserId = function()
+		GetPlayers = function() return table.clone(connectedPlayers) end,
+		PlayerAdded = newInstance("BindableEvent").Event,
+		PlayerRemoving = newInstance("BindableEvent").Event,
+		GetPlayerByUserId = function(_, userId)
+			for _, player in ipairs(connectedPlayers) do
+				if player.UserId == userId then return player end
+			end
 			return nil
 		end,
 	}
+	function services.Players:Add(player)
+		table.insert(connectedPlayers, player)
+		player.Parent = self
+		self.PlayerAdded:Fire(player)
+	end
+	function services.Players:Remove(player)
+		self.PlayerRemoving:Fire(player)
+		local index = table.find(connectedPlayers, player)
+		if index then table.remove(connectedPlayers, index) end
+		player.Parent = nil
+	end
 	services.RunService = {
 		IsServer = function()
 			return true
@@ -200,7 +252,7 @@ function Stub.install()
 		IsStudio = function()
 			return true
 		end,
-		Heartbeat = { Connect = function() end },
+		Heartbeat = newInstance("BindableEvent").Event,
 	}
 	services.DataStoreService = {
 		GetDataStore = function()
@@ -272,10 +324,16 @@ function Stub.install()
 		if key == "Magnitude" then return math.sqrt(a.X * a.X + a.Y * a.Y + a.Z * a.Z) end
 	end
 	Vector3 = { new = function(x, y, z) return setmetatable({ X = x, Y = y, Z = z }, vectorMeta) end }
+	Vector3.zero = Vector3.new(0, 0, 0)
 	Vector2 = { new = function(x, y)
 		return { X = x, Y = y }
 	end }
-	local frameMeta = { __mul = function(a, b) return CFrame.new(a.X + b.X, a.Y + b.Y, a.Z + b.Z) end }
+	local frameMeta = {
+		__mul = function(a, b) return CFrame.new(a.X + b.X, a.Y + b.Y, a.Z + b.Z) end,
+		__index = {
+			PointToObjectSpace = function(self, point) return point - self.Position end,
+		},
+	}
 	CFrame = {
 		new = function(x, y, z)
 			return setmetatable({ X = x or 0, Y = y or 0, Z = z or 0, Position = Vector3.new(x or 0, y or 0, z or 0) }, frameMeta)

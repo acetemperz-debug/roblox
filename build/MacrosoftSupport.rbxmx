@@ -1,13 +1,13 @@
 <roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
-	<Item class="Folder" referent="RBX82">
+	<Item class="Folder" referent="RBX86">
 		<Properties>
 			<string name="Name">MacrosoftSupport</string>
 		</Properties>
-		<Item class="Folder" referent="RBX56">
+		<Item class="Folder" referent="RBX58">
 			<Properties>
 				<string name="Name">MacrosoftShared</string>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX43">
+			<Item class="ModuleScript" referent="RBX45">
 				<Properties>
 					<string name="Name">Achievements</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -294,7 +294,7 @@ return Achievements
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX44">
+			<Item class="ModuleScript" referent="RBX46">
 				<Properties>
 					<string name="Name">Config</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -304,7 +304,7 @@ return Achievements
 
 local Config = {}
 
-Config.Version = "1.4.0"
+Config.Version = "1.5.0"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
@@ -460,7 +460,7 @@ return Config
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX45">
+			<Item class="ModuleScript" referent="RBX47">
 				<Properties>
 					<string name="Name">DialogueLibrary</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -1514,7 +1514,7 @@ return DialogueLibrary
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX46">
+			<Item class="ModuleScript" referent="RBX48">
 				<Properties>
 					<string name="Name">Difficulty</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -1639,7 +1639,7 @@ return Difficulty
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX47">
+			<Item class="ModuleScript" referent="RBX49">
 				<Properties>
 					<string name="Name">Net</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -1666,6 +1666,7 @@ local EVENTS = {
 	"SetAlias", -- (alias: string)
 	"OperationAction", -- (action: string, a: any?, b: any?)
 	"CloseTerminal",
+	"OfficeAction", -- choose / invite / respond / revoke / leave; no client-selected reward owner
 
 	-- Server -> Client
 	"CallStarted", -- (callView)
@@ -1683,6 +1684,9 @@ local EVENTS = {
 	"TerminalOpened", -- server-authorised physical terminal session
 	"TerminalClosed",
 	"LeaderboardRank", -- personal row on the physical board
+	"OfficeSessionUpdated",
+	"OfficeDataUpdated", -- host summary only; personal DataUpdated is never replaced
+	"CallCancelled",
 }
 
 local FUNCTIONS = {
@@ -1690,6 +1694,7 @@ local FUNCTIONS = {
 	"GetCatalog", -- () -> {upgrades, ranks, achievements, difficulties}
 	"GetStore", -- () -> {passes, products}
 	"GetOperation", -- () -> operationView
+	"GetOfficeSession",
 }
 
 local Net = {}
@@ -1756,7 +1761,7 @@ return Net
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX48">
+			<Item class="ModuleScript" referent="RBX50">
 				<Properties>
 					<string name="Name">NPCNames</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -1889,7 +1894,7 @@ return NPCNames
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX49">
+			<Item class="ModuleScript" referent="RBX51">
 				<Properties>
 					<string name="Name">Operation</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -2519,7 +2524,7 @@ return Operation
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX50">
+			<Item class="ModuleScript" referent="RBX52">
 				<Properties>
 					<string name="Name">Personalities</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -3262,7 +3267,7 @@ return Personalities
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX51">
+			<Item class="ModuleScript" referent="RBX53">
 				<Properties>
 					<string name="Name">Products</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -3509,7 +3514,7 @@ return Products
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX52">
+			<Item class="ModuleScript" referent="RBX54">
 				<Properties>
 					<string name="Name">RandomEvents</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -3855,7 +3860,7 @@ return RandomEvents
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX53">
+			<Item class="ModuleScript" referent="RBX55">
 				<Properties>
 					<string name="Name">Ranks</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -3958,7 +3963,7 @@ return Ranks
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX54">
+			<Item class="ModuleScript" referent="RBX56">
 				<Properties>
 					<string name="Name">Upgrades</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -4174,7 +4179,7 @@ return Upgrades
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX55">
+			<Item class="ModuleScript" referent="RBX57">
 				<Properties>
 					<string name="Name">Util</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -4331,11 +4336,11 @@ return Util
 				</Properties>
 			</Item>
 		</Item>
-		<Item class="Folder" referent="RBX76">
+		<Item class="Folder" referent="RBX79">
 			<Properties>
 				<string name="Name">MacrosoftServer</string>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX57">
+			<Item class="ModuleScript" referent="RBX59">
 				<Properties>
 					<string name="Name">AchievementManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -4406,7 +4411,7 @@ return AchievementManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX58">
+			<Item class="ModuleScript" referent="RBX60">
 				<Properties>
 					<string name="Name">CallManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -4437,6 +4442,17 @@ local HeatManager = require(script.Parent.HeatManager)
 local CallManager = {}
 
 local calls: { [number]: any } = {}
+local contextValidator
+
+-- Installed by the bootstrap. Tests can exercise accounting without world APIs.
+function CallManager.setContextValidator(validate)
+	contextValidator = validate
+end
+
+local function validContext(state)
+	return PlayerDataManager.get(state.accountOwner or state.player) ~= nil
+		and (not contextValidator or contextValidator(state.player, state.accountOwner or state.player))
+end
 
 CallManager.CallFinished = Instance.new("BindableEvent")
 
@@ -4617,8 +4633,10 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 	if state.ended then
 		return
 	end
+	if not validContext(state) then CallManager.cancel(state.player); return end
 	state.ended = true
 	local player = state.player
+	local owner = state.accountOwner or player
 	calls[player.UserId] = nil
 
 	local duration = state.elapsed
@@ -4640,11 +4658,11 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 		difficulty = state.difficultyKey,
 	}
 
-	local reward, breakdown = RewardManager.award(player, result)
+	local reward, breakdown = RewardManager.award(owner, result)
 
 	-- Every call leaves a trace. Ringing an actual police station leaves rather
 	-- more of one.
-	local profile = PlayerDataManager.get(player)
+	local profile = PlayerDataManager.get(owner)
 	if profile and profile.operation then
 		local heat = 0
 		if state.npc.personalityId == "police_desk" then
@@ -4660,7 +4678,7 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 		end
 	end
 
-	local unlocked = AchievementManager.evaluate(player, result)
+	local unlocked = AchievementManager.evaluate(owner, result)
 
 	local achievementViews = {}
 	for _, a in ipairs(unlocked) do
@@ -4692,10 +4710,12 @@ function CallManager.finish(state, outcome: string, closingLine: string?)
 		breakdown = breakdown,
 		achievements = achievementViews,
 		perfect = state.perfect,
+		accountOwnerUserId = owner.UserId,
+		accountOwnerName = owner.DisplayName,
 	})
 
-	CallManager.CallFinished:Fire(player, result, reward)
-	PlayerDataManager.notify(player)
+	CallManager.CallFinished:Fire(owner, result, reward, player)
+	PlayerDataManager.notify(owner)
 end
 
 function CallManager.resolve(state)
@@ -4716,11 +4736,13 @@ end
 -- Player actions
 --------------------------------------------------------------------------------
 
-function CallManager.start(player: Player, difficultyKey: string): (boolean, string)
+function CallManager.start(player: Player, difficultyKey: string, accountOwner: Player?): (boolean, string)
 	if calls[player.UserId] then
 		return false, "You are already on a call."
 	end
-	local data = PlayerDataManager.get(player)
+	local owner = accountOwner or player
+	if contextValidator and not contextValidator(player, owner) then return false, "Office access is no longer valid." end
+	local data = PlayerDataManager.get(owner)
 	if not data then
 		return false, "Your profile is still loading."
 	end
@@ -4731,15 +4753,17 @@ function CallManager.start(player: Player, difficultyKey: string): (boolean, str
 		return false, level.label .. " difficulty unlocks at " .. needed.name .. "."
 	end
 
-	local bonuses = PlayerDataManager.getBonuses(player)
+	local bonuses = PlayerDataManager.getBonuses(owner)
 	local rank = Ranks.get(data.rankIndex)
 
 	-- Warm Lead is spent at connect time, before the caller is rolled.
-	local warmLead = PlayerDataManager.consumeItem(player, "warm_lead")
+	-- Guests never consume either player's paid inventory on a shared call.
+	local warmLead = owner == player and PlayerDataManager.consumeItem(player, "warm_lead")
 	local npc = NPCGenerator.generate(level.key, bonuses, nil, { warmLead = warmLead })
 
 	local state = {
 		player = player,
+		accountOwner = owner,
 		npc = npc,
 		difficultyKey = level.key,
 		bonuses = bonuses,
@@ -4767,7 +4791,7 @@ function CallManager.start(player: Player, difficultyKey: string): (boolean, str
 	}
 	calls[player.UserId] = state
 
-	PlayerDataManager.setDifficulty(player, level.key)
+	if owner == player then PlayerDataManager.setDifficulty(player, level.key) end
 
 	if warmLead then
 		Net.event("Notify"):FireClient(player, {
@@ -4790,6 +4814,7 @@ function CallManager.choose(player: Player, index: number)
 	if not state or state.ended then
 		return
 	end
+	if not validContext(state) then CallManager.cancel(player); return end
 	local source = state.currentSource
 	if not source then
 		return
@@ -4878,6 +4903,8 @@ function CallManager.useItem(player: Player, productId: string): (boolean, strin
 	if not state or state.ended then
 		return false, "You are not on a call."
 	end
+	if not validContext(state) then CallManager.cancel(player); return false, "Office access ended." end
+	if state.accountOwner ~= player then return false, "Only the host can use paid consumables in this office." end
 	if (PlayerDataManager.get(player) == nil) then
 		return false, "Your profile is still loading."
 	end
@@ -4911,6 +4938,15 @@ function CallManager.getState(player: Player)
 	return calls[player.UserId]
 end
 
+-- Session transitions never pay consolation or record a completed call.
+function CallManager.cancel(player: Player)
+	local state = calls[player.UserId]
+	if not state then return end
+	state.ended = true
+	calls[player.UserId] = nil
+	Net.event("CallCancelled"):FireClient(player)
+end
+
 --------------------------------------------------------------------------------
 -- Timer / patience drain
 --------------------------------------------------------------------------------
@@ -4923,6 +4959,7 @@ function CallManager.beginRuntime()
 			accumulator += dt
 			for userId, state in pairs(calls) do
 				if not state.ended then
+					if not validContext(state) then CallManager.cancel(state.player); continue end
 					state.elapsed = os.clock() - state.startClock
 
 					-- Patience drains with time as well as with choices.
@@ -4956,7 +4993,7 @@ return CallManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX59">
+			<Item class="ModuleScript" referent="RBX61">
 				<Properties>
 					<string name="Name">CosmeticsManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -5129,7 +5166,7 @@ return CosmeticsManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX60">
+			<Item class="ModuleScript" referent="RBX62">
 				<Properties>
 					<string name="Name">DialogueManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -5235,7 +5272,7 @@ return DialogueManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX61">
+			<Item class="ModuleScript" referent="RBX63">
 				<Properties>
 					<string name="Name">EnvironmentBuilder</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -6161,7 +6198,7 @@ return EnvironmentBuilder
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX62">
+			<Item class="ModuleScript" referent="RBX64">
 				<Properties>
 					<string name="Name">HeatManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -6336,7 +6373,7 @@ return HeatManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX63">
+			<Item class="ModuleScript" referent="RBX65">
 				<Properties>
 					<string name="Name">LeaderboardManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -6549,7 +6586,7 @@ return LeaderboardManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX64">
+			<Item class="ModuleScript" referent="RBX66">
 				<Properties>
 					<string name="Name">LeaderboardRank</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -6576,7 +6613,7 @@ return LeaderboardRank
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="Script" referent="RBX65">
+			<Item class="Script" referent="RBX67">
 				<Properties>
 					<string name="Name">MacrosoftServer</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -6626,7 +6663,8 @@ local _, shopPrompt, executivePrompt = EnvironmentBuilder.build()
 local function openTerminal(player, terminal)
 	if CallManager.getState(player) then return end
 	if TerminalAccess.open(player, terminal) then
-		Net.event("TerminalOpened"):FireClient(player, { kind = terminal.kind, anchor = terminal.anchor })
+		Net.event("TerminalOpened"):FireClient(player, { kind = terminal.kind, anchor = terminal.anchor,
+			isGuest = terminal.owner ~= nil and terminal.owner ~= player.UserId })
 	end
 end
 
@@ -6641,6 +6679,9 @@ for _, entry in ipairs({
 }) do
 	if entry.prompt then
 		local terminal = { kind = entry.kind, anchor = entry.prompt.Parent, model = entry.prompt.Parent.Parent, canUse = entry.canUse }
+		terminal.canAccess = function(player)
+			return OfficeManager.sessionHost(player) == player and OfficeManager.canEnter(player, player.UserId)
+		end
 		entry.prompt.ActionText = "Use Computer"
 		entry.prompt.Triggered:Connect(function(player)
 			if TerminalAccess.throttle(player, "prompt", 0.4) then openTerminal(player, terminal) end
@@ -6650,9 +6691,51 @@ end
 
 local function closeTerminal(player)
 	TerminalAccess.close(player)
-	if CallManager.getState(player) then CallManager.hangUp(player) end
+	CallManager.cancel(player)
 	Net.event("TerminalClosed"):FireClient(player)
 end
+
+OfficeManager.Travelling.Event:Connect(closeTerminal)
+CallManager.setContextValidator(function(actor, owner)
+	if OfficeManager.sessionHost(actor) ~= owner or not OfficeManager.canEnter(actor, owner.UserId) then return false end
+	local current = TerminalAccess.current(actor)
+	return current ~= nil and current.terminal.kind == "workstation" and TerminalAccess.valid(actor)
+		and (current.terminal.owner == owner.UserId or (current.terminal.owner == nil and actor == owner))
+end)
+
+local function pushOfficeView(player)
+	local host = OfficeManager.sessionHost(player)
+	local view = host and PlayerDataManager.publicView(host)
+	if not view then return end
+	Net.event("OfficeDataUpdated"):FireClient(player, {
+		hostUserId = host.UserId, hostName = host.DisplayName, credits = view.credits,
+		rankIndex = view.rankIndex, rankName = view.rankName, saveDisabled = view.saveDisabled, saveNote = view.saveNote,
+	})
+	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(host))
+end
+
+OfficeManager.SessionChanged.Event:Connect(function(player, view)
+	Net.event("OfficeSessionUpdated"):FireClient(player, view)
+	pushOfficeView(player)
+end)
+
+Net.event("OfficeAction").OnServerEvent:Connect(function(player, action, a, b)
+	if not TerminalAccess.throttle(player, "officeAction", 0.3) or typeof(action) ~= "string" then return end
+	local ok, message
+	if action == "choose" and (a == "solo" or a == "coop") then
+		ok, message = OfficeManager.chooseMode(player, a)
+	elseif action == "invite" and TerminalAccess.finiteInteger(a, 1, 9007199254740991) then
+		ok, message = OfficeManager.invite(player, a)
+	elseif action == "respond" and typeof(a) == "string" and #a <= 32 and typeof(b) == "boolean" then
+		ok, message = OfficeManager.respondInvite(player, a, b)
+	elseif action == "revoke" and TerminalAccess.finiteInteger(a, 1, 9007199254740991) then
+		ok, message = OfficeManager.revokeGuest(player, a)
+	elseif action == "leave" then
+		ok, message = OfficeManager.leaveSession(player)
+	else return end
+	Net.event("OfficeSessionUpdated"):FireClient(player, OfficeManager.sessionView(player))
+	if message then Net.event("Notify"):FireClient(player, { title = "Office Access", body = message, kind = ok and "info" or "warn" }) end
+end)
 
 Net.event("CloseTerminal").OnServerEvent:Connect(closeTerminal)
 Players.PlayerRemoving:Connect(function(player) TerminalAccess.remove(player) end)
@@ -6708,6 +6791,9 @@ end
 PlayerDataManager.DataChanged.Event:Connect(function(player, view)
 	setupLeaderstats(player, view)
 	Net.event("DataUpdated"):FireClient(player, view)
+	for _, viewer in ipairs(Players:GetPlayers()) do
+		if OfficeManager.sessionHost(viewer) == player then pushOfficeView(viewer) end
+	end
 end)
 
 Players.PlayerAdded:Connect(function(player)
@@ -6745,8 +6831,10 @@ AchievementManager.Unlocked.Event:Connect(function(player, achievement)
 end)
 
 OperationManager.Changed.Event:Connect(function(player, view)
-	Net.event("OperationUpdated"):FireClient(player, view)
 	OfficeManager.update(player, view)
+	for _, viewer in ipairs(Players:GetPlayers()) do
+		if OfficeManager.sessionHost(viewer) == player then Net.event("OperationUpdated"):FireClient(viewer, view) end
+	end
 end)
 
 OperationManager.OfflineEarnings.Event:Connect(function(player, amount, seconds)
@@ -6758,12 +6846,18 @@ OperationManager.OfflineEarnings.Event:Connect(function(player, amount, seconds)
 end)
 
 HeatManager.Warned.Event:Connect(function(player, warning)
-	Net.event("HeatWarning"):FireClient(player, warning)
+	for _, viewer in ipairs(Players:GetPlayers()) do
+		if OfficeManager.sessionHost(viewer) == player then Net.event("HeatWarning"):FireClient(viewer, warning) end
+	end
 end)
 
 OperationManager.Raided.Event:Connect(function(player, outcome)
-	Net.event("RaidAlert"):FireClient(player, outcome)
-	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(player))
+	for _, viewer in ipairs(Players:GetPlayers()) do
+		if OfficeManager.sessionHost(viewer) == player then
+			Net.event("RaidAlert"):FireClient(viewer, outcome)
+			Net.event("OperationUpdated"):FireClient(viewer, OperationManager.view(player))
+		end
+	end
 	OfficeManager.update(player, OperationManager.view(player))
 	-- Everyone gets to watch the car turn up.
 	EnvironmentBuilder.showRaid(player.DisplayName, outcome.escaped and 12 or Operation.Raid.ShutdownSeconds)
@@ -6841,7 +6935,9 @@ Net.event("StartCall").OnServerEvent:Connect(function(player, difficultyKey)
 	if not level then
 		return
 	end
-	local ok, reason = CallManager.start(player, difficultyKey)
+	local owner = OfficeManager.sessionHost(player)
+	if not owner then return end
+	local ok, reason = CallManager.start(player, difficultyKey, owner)
 	if not ok then
 		Net.event("Notify"):FireClient(player, { title = "Cannot Start Call", body = reason, kind = "warn" })
 	end
@@ -6879,7 +6975,8 @@ Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
 	if typeof(key) ~= "string" or not Difficulty.Levels[key] then
 		return
 	end
-	local data = PlayerDataManager.get(player)
+	local owner = OfficeManager.sessionHost(player)
+	local data = owner and PlayerDataManager.get(owner)
 	local level = Difficulty.Levels[key]
 	if data and data.rankIndex < level.minRankIndex then
 		Net.event("Notify"):FireClient(player, {
@@ -6889,7 +6986,7 @@ Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
 		})
 		return
 	end
-	PlayerDataManager.setDifficulty(player, key)
+	if owner == player then PlayerDataManager.setDifficulty(player, key) end
 end)
 
 Net.event("PromptPurchase").OnServerEvent:Connect(function(player, kind, itemId)
@@ -7036,7 +7133,13 @@ Net.func("GetData").OnServerInvoke = function(player)
 end
 
 Net.func("GetOperation").OnServerInvoke = function(player)
-	return OperationManager.view(player)
+	return OperationManager.view(OfficeManager.sessionHost(player) or player)
+end
+
+Net.func("GetOfficeSession").OnServerInvoke = function(player)
+	if not TerminalAccess.throttle(player, "officeRead", 0.5) then return nil end
+	pushOfficeView(player)
+	return OfficeManager.sessionView(player)
 end
 
 Net.func("GetStore").OnServerInvoke = function(player)
@@ -7108,7 +7211,7 @@ print(string.format(
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX66">
+			<Item class="ModuleScript" referent="RBX68">
 				<Properties>
 					<string name="Name">MonetisationManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -7377,7 +7480,7 @@ return MonetisationManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX67">
+			<Item class="ModuleScript" referent="RBX69">
 				<Properties>
 					<string name="Name">NPCGenerator</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -7507,7 +7610,7 @@ return NPCGenerator
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX68">
+			<Item class="ModuleScript" referent="RBX70">
 				<Properties>
 					<string name="Name">NPCPersonalitySystem</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -7766,21 +7869,27 @@ return NPCPersonalitySystem
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX69">
+			<Item class="ModuleScript" referent="RBX71">
 				<Properties>
 					<string name="Name">OfficeManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
 -- Physical presentation of the existing saved operation; never computes rewards.
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
 local Operation = require(Shared.Operation)
 local Util = require(Shared.Util)
 local Environment = require(script.Parent.EnvironmentBuilder)
 local Data = require(script.Parent.PlayerDataManager)
 local Access = require(script.Parent.TerminalAccess)
+local Sessions = require(script.Parent.OfficeSessions)
 local OfficeManager = {}
 local offices, slots = {}, {}
+local policy = Sessions.new()
+local removing = setmetatable({}, { __mode = "k" })
 local onTerminal
+OfficeManager.SessionChanged = Instance.new("BindableEvent")
+OfficeManager.Travelling = Instance.new("BindableEvent")
 local cyan = Color3.fromRGB(30, 225, 235)
 local gold = Color3.fromRGB(255, 191, 60)
 local pink = Color3.fromRGB(244, 75, 175)
@@ -7811,7 +7920,18 @@ local function terminal(office, kind, title, x, z, colour, canUse)
 	prompt.RequiresLineOfSight = false -- server raycast is authoritative
 	prompt.HoldDuration = 0.2
 	prompt.Parent = anchor
-	local spec = { kind = kind, anchor = anchor, model = desk, owner = office.player.UserId, canUse = canUse }
+	local spec = { kind = kind, anchor = anchor, model = desk, owner = office.player.UserId,
+		canAccess = function(player) return OfficeManager.canEnter(player, office.player.UserId) end,
+		canUse = function(player)
+			return (player.UserId == office.player.UserId or kind == "workstation" or kind == "management")
+				and (not canUse or canUse(player))
+		end,
+		canAct = function(player, action)
+			if player.UserId == office.player.UserId then return true end
+			-- Invited helpers make calls and inspect access controls; spending remains host-only.
+			return kind == "workstation" and (action == "StartCall" or action == "ChooseOption" or action == "SetDifficulty")
+		end,
+	}
 	prompt.Triggered:Connect(function(player)
 		if Access.throttle(player, "prompt", 0.4) and Access.near(player, spec) then onTerminal(player, spec) end
 	end)
@@ -7844,20 +7964,173 @@ local function create(player)
 	prompt.MaxActivationDistance = 8
 	prompt.Parent = exit
 	prompt.Triggered:Connect(function(visitor)
-		if Access.near(visitor, { anchor = exit, distance = 8 }) and Access.throttle(visitor, "travel", 2) then
-			visitor.Character:PivotTo(CFrame.new(0, 4, 44))
+		if OfficeManager.canEnter(visitor, player.UserId) and Access.near(visitor, { anchor = exit, distance = 8 }) and Access.throttle(visitor, "travel", 2) then
+			OfficeManager.visitLobby(visitor)
 		end
 	end)
 	return office
 end
 
+function OfficeManager.sessionHost(player)
+	return policy:host(player.UserId)
+end
+
+function OfficeManager.canEnter(player, ownerId)
+	local record = policy:get(player.UserId)
+	return record ~= nil and record.player == player and not removing[player] and policy:canEnter(player.UserId, ownerId)
+end
+
+local function travel(player, cf)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then return false end
+	OfficeManager.Travelling:Fire(player)
+	Access.close(player)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	character:PivotTo(cf)
+	return true
+end
+
 function OfficeManager.teleport(player)
+	local host = OfficeManager.sessionHost(player)
+	local office = host and offices[host]
+	if not office or not OfficeManager.canEnter(player, host.UserId) then return false end
+	return travel(player, office.origin * CFrame.new(0, 4, 9))
+end
+
+function OfficeManager.visitLobby(player)
+	return travel(player, CFrame.new(0, 4, 44))
+end
+
+function OfficeManager.canManageAccess(player)
+	local current = Access.current(player)
+	return OfficeManager.sessionHost(player) == player and current ~= nil and Access.valid(player)
+		and current.terminal.kind == "management" and current.terminal.owner == player.UserId
+end
+
+function OfficeManager.sessionView(player)
+	local view = policy:view(player.UserId)
+	if not view then return nil end
+	view.canManageAccess = OfficeManager.canManageAccess(player)
+	view.candidates = {}
+	if view.canManageAccess then
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and not OfficeManager.canEnter(other, player.UserId) then
+				table.insert(view.candidates, { userId = other.UserId, name = other.DisplayName })
+			end
+		end
+	end
+	return view
+end
+
+local function changed(ids)
+	for _, id in ipairs(ids) do
+		local record = policy:get(id)
+		if record then
+			if record.player.SetAttribute then
+				record.player:SetAttribute("OfficeHostUserId", record.hostUserId)
+				record.player:SetAttribute("OfficeMode", record.mode or "pending")
+			end
+			OfficeManager.SessionChanged:Fire(record.player, OfficeManager.sessionView(record.player))
+		end
+	end
+end
+
+function OfficeManager.chooseMode(player, mode)
+	local ok, message = policy:choose(player.UserId, mode)
+	if ok then
+		changed({ player.UserId })
+		OfficeManager.teleport(player)
+	end
+	return ok, message
+end
+
+function OfficeManager.invite(player, targetId)
+	if not OfficeManager.canManageAccess(player) then return false, "Use your own management computer to invite." end
+	local ok, message = policy:invite(player.UserId, targetId)
+	if ok then changed({ player.UserId, targetId }) end
+	return ok, message
+end
+
+function OfficeManager.respondInvite(player, id, accept)
+	local ok, message, ids = policy:respond(player.UserId, id, accept)
+	if ok and accept then OfficeManager.teleport(player) end
+	changed(ids or { player.UserId })
+	return ok, message
+end
+
+function OfficeManager.revokeGuest(player, targetId)
+	if not OfficeManager.canManageAccess(player) then return false, "Use your own management computer to remove guests." end
+	local guest = policy:get(targetId)
+	local wasMember = guest and guest.hostUserId == player.UserId
+	local ok, message, ids = policy:revoke(player.UserId, targetId)
+	if ok and wasMember then
+		if not OfficeManager.teleport(guest.player) then OfficeManager.visitLobby(guest.player) end
+	end
+	changed(ids or {})
+	return ok, message
+end
+
+function OfficeManager.leaveSession(player)
+	local ok, message, ids = policy:leave(player.UserId)
+	if ok then
+		if not OfficeManager.teleport(player) then OfficeManager.visitLobby(player) end
+	end
+	changed(ids or {})
+	return ok, message
+end
+
+-- World entry is authorised separately from prompts. This also catches players
+-- pushed, flown or teleported across a plot wall without using a lift.
+function OfficeManager.enforce(player)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	local position = root.Position
+	if not (math.abs(position.X) < math.huge and math.abs(position.Y) < math.huge and math.abs(position.Z) < math.huge) then
+		OfficeManager.visitLobby(player)
+		return
+	end
+	for owner, office in pairs(offices) do
+		local p = office.origin:PointToObjectSpace(position)
+		-- A fixed envelope covers the largest office and its exterior at every tier.
+		if math.abs(p.X) <= 104 and p.Z >= -90 and p.Z <= 144 then
+			if not OfficeManager.canEnter(player, owner.UserId) then
+				if not OfficeManager.teleport(player) then OfficeManager.visitLobby(player) end
+			end
+			return
+		end
+	end
+end
+
+function OfficeManager.remove(player)
+	removing[player] = true
+	OfficeManager.Travelling:Fire(player)
+	Access.remove(player)
+	local departing = policy:get(player.UserId)
+	local isCurrent = departing and departing.player == player
+	local wasHost = isCurrent and departing.hostUserId == player.UserId
+	local affected = isCurrent and policy:remove(player.UserId) or {}
+	for _, id in ipairs(affected) do
+		local record = policy:get(id)
+		-- Guests of a disconnected host now belong to their own solo office.
+		-- A guest disconnect must not relocate the surviving host or cancel their call.
+		if wasHost and record and record.hostUserId == id then
+			if not OfficeManager.teleport(record.player) then OfficeManager.visitLobby(record.player) end
+		end
+	end
 	local office = offices[player]
-	if office and player.Character then player.Character:PivotTo(office.origin * CFrame.new(0, 4, 9)) end
+	if office then
+		Environment.removeEmployees(office.model)
+		office.model:Destroy()
+		slots[office.slot], offices[player] = nil, nil
+	end
+	changed(affected)
 end
 
 function OfficeManager.update(player, view)
-	if not view then return end
+	if not view or removing[player] then return end
+	policy:add(player)
 	local firstVisit = offices[player] == nil
 	local office = offices[player] or create(player)
 	local profile = Data.get(player)
@@ -7957,7 +8230,10 @@ function OfficeManager.update(player, view)
 		end
 	end
 	office.staff:SetAttribute("Paused", paused)
-	if firstVisit then OfficeManager.teleport(player) end
+	if firstVisit then
+		changed({ player.UserId })
+		if OfficeManager.sessionHost(player) == player then OfficeManager.teleport(player) end
+	end
 end
 
 function OfficeManager.start(callback)
@@ -7973,25 +8249,33 @@ function OfficeManager.start(callback)
 		if Access.near(player, { anchor = lift }) and Access.throttle(player, "travel", 2) then OfficeManager.teleport(player) end
 	end)
 	local function joined(player)
-		player.CharacterAdded:Connect(function(character)
+		removing[player] = nil
+		policy:add(player)
+		local function respawned(character)
 			task.spawn(function()
 				local root = character:WaitForChild("HumanoidRootPart", 15)
-				local deadline = os.clock() + 30
-				while player.Parent and not offices[player] and os.clock() < deadline do task.wait(0.2) end
-				if root and player.Character == character then OfficeManager.teleport(player) end
+				if root and player.Character == character and not removing[player] then
+					if not OfficeManager.teleport(player) then OfficeManager.visitLobby(player) end
+					changed({ player.UserId })
+				end
 			end)
-		end)
+		end
+		player.CharacterAdded:Connect(respawned)
+		if player.Character then respawned(player.Character) end
+		changed({ player.UserId })
 	end
 	Players.PlayerAdded:Connect(joined)
 	for _, player in ipairs(Players:GetPlayers()) do joined(player) end
-	Players.PlayerRemoving:Connect(function(player)
-		local office = offices[player]
-		if office then
-			Environment.removeEmployees(office.model)
-			office.model:Destroy()
-			slots[office.slot] = nil
-			offices[player] = nil
+	Players.PlayerRemoving:Connect(OfficeManager.remove)
+	local elapsed, expiryElapsed = 0, 0
+	RunService.Heartbeat:Connect(function(dt)
+		elapsed += dt
+		expiryElapsed += dt
+		if elapsed >= 0.1 then
+			elapsed = 0
+			for _, player in ipairs(Players:GetPlayers()) do OfficeManager.enforce(player) end
 		end
+		if expiryElapsed >= 1 then expiryElapsed = 0; changed(policy:expire()) end
 	end)
 end
 
@@ -7999,7 +8283,168 @@ return OfficeManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX70">
+			<Item class="ModuleScript" referent="RBX72">
+				<Properties>
+					<string name="Name">OfficeSessions</string>
+					<ProtectedString name="Source"><![CDATA[--!nonstrict
+-- Ephemeral consent policy. No profile tables or DataStores belong here.
+local OfficeSessions = {}
+local LIMIT, INVITE_SECONDS = 8, 90
+
+function OfficeSessions.new(now)
+	now = now or os.clock
+	local records, invitations = {}, {}
+	local serial = 0
+	local self = {}
+	local function members(hostId)
+		local ids = {}
+		for id, record in pairs(records) do
+			if record.hostUserId == hostId then table.insert(ids, id) end
+		end
+		table.sort(ids)
+		return ids
+	end
+	local function clearInvites(id)
+		for token, invite in pairs(invitations) do
+			if invite.hostUserId == id or invite.targetUserId == id then invitations[token] = nil end
+		end
+	end
+	function self:get(id) return records[id] end
+	function self:host(id)
+		local record = records[id]
+		local host = record and records[record.hostUserId]
+		return host and host.player or nil
+	end
+	function self:remove(id)
+		local record = records[id]
+		if not record then return {} end
+		local affected = members(record.hostUserId)
+		if record.hostUserId == id then
+			for _, guestId in ipairs(affected) do
+				if guestId ~= id then
+					local guest = records[guestId]
+					guest.hostUserId, guest.mode, guest.needsChoice = guestId, "solo", false
+				end
+			end
+		end
+		clearInvites(id)
+		records[id] = nil
+		local out = {}
+		for _, uid in ipairs(affected) do if uid ~= id then table.insert(out, uid) end end
+		return out
+	end
+	function self:add(player)
+		if records[player.UserId] and records[player.UserId].player == player then return records[player.UserId] end
+		self:remove(player.UserId)
+		local record = { player = player, userId = player.UserId, hostUserId = player.UserId, mode = nil, needsChoice = true }
+		records[player.UserId] = record
+		return record
+	end
+	function self:choose(id, mode)
+		local record = records[id]
+		if not record or (mode ~= "solo" and mode ~= "coop") then return false, "Choose Solo or Co-op." end
+		if record.hostUserId ~= id then return false, "Leave your host's session first." end
+		if mode == "solo" and #members(id) > 1 then return false, "Remove guests before switching to Solo." end
+		record.mode, record.needsChoice = mode, false
+		return true, mode == "solo" and "Your office is private. You can invite friends later." or "Co-op is invite-only. Invite from Office Management."
+	end
+	function self:canEnter(id, ownerId)
+		local record, owner = records[id], records[ownerId]
+		return record ~= nil and owner ~= nil and not record.needsChoice and not owner.needsChoice
+			and owner.hostUserId == ownerId and record.hostUserId == ownerId
+	end
+	function self:invite(hostId, targetId)
+		local host, target = records[hostId], records[targetId]
+		if not host or host.needsChoice or host.hostUserId ~= hostId then return false, "Only the office host can invite." end
+		if not target or targetId == hostId then return false, "Choose another player in this server." end
+		if target.hostUserId == hostId then return false, "That player is already a member." end
+		if #members(hostId) >= LIMIT then return false, "The party is full (8 players)." end
+		-- Reinviting replaces the prior offer, so old accept clicks cannot be replayed.
+		for token, invite in pairs(invitations) do
+			if invite.hostUserId == hostId and invite.targetUserId == targetId then invitations[token] = nil end
+		end
+		serial += 1
+		local invite = { id = tostring(serial), hostUserId = hostId, targetUserId = targetId,
+			hostPlayer = host.player, targetPlayer = target.player, expires = now() + INVITE_SECONDS }
+		invitations[invite.id] = invite
+		return true, "Invitation sent. Entry unlocks only after acceptance.", invite
+	end
+	function self:respond(id, token, accept)
+		local invite = invitations[token]
+		local target = records[id]
+		local host = invite and records[invite.hostUserId]
+		if type(accept) ~= "boolean" or not invite or invite.targetUserId ~= id or not target
+			or target.player ~= invite.targetPlayer or not host or host.player ~= invite.hostPlayer
+			or host.hostUserId ~= invite.hostUserId or invite.expires <= now() then
+			return false, "This invitation is no longer valid.", {}
+		end
+		invitations[token] = nil
+		if not accept then return true, "Invitation declined.", { id, invite.hostUserId } end
+		if target.hostUserId == id and #members(id) > 1 then return false, "Remove your guests before joining another host.", { id } end
+		if #members(invite.hostUserId) >= LIMIT then return false, "That party is now full.", { id } end
+		local affected = members(target.hostUserId)
+		clearInvites(id)
+		target.hostUserId, target.mode, target.needsChoice = invite.hostUserId, "coop", false
+		host.mode = "coop"
+		for _, uid in ipairs(members(invite.hostUserId)) do if not table.find(affected, uid) then table.insert(affected, uid) end end
+		return true, "Joined " .. host.player.DisplayName .. "'s office. Calls benefit the host; your save stays separate.", affected
+	end
+	function self:revoke(hostId, guestId)
+		local host, guest = records[hostId], records[guestId]
+		if not host or host.hostUserId ~= hostId or hostId == guestId then return false, "Only the host can remove guests.", {} end
+		-- Also cancels a pending invitation for this player.
+		local pending = false
+		for token, invite in pairs(invitations) do
+			if invite.hostUserId == hostId and invite.targetUserId == guestId then invitations[token] = nil; pending = true end
+		end
+		if not guest or guest.hostUserId ~= hostId then return pending, pending and "Invitation cancelled." or "That player is not a guest.", { hostId, guestId } end
+		local affected = members(hostId)
+		guest.hostUserId, guest.mode, guest.needsChoice = guestId, "solo", false
+		return true, "Guest access revoked.", affected
+	end
+	function self:leave(id)
+		local record = records[id]
+		if not record or record.hostUserId == id then return false, "You are already in your own office.", {} end
+		return self:revoke(record.hostUserId, id)
+	end
+	function self:expire()
+		local affected = {}
+		for token, invite in pairs(invitations) do
+			if invite.expires <= now() then
+				invitations[token] = nil
+				table.insert(affected, invite.targetUserId)
+			end
+		end
+		return affected
+	end
+	function self:view(id)
+		local record = records[id]
+		if not record then return nil end
+		local host = records[record.hostUserId]
+		local view = { needsChoice = record.needsChoice, mode = host.mode, hostUserId = record.hostUserId,
+			hostName = host.player.DisplayName, isHost = id == record.hostUserId, members = {}, invitations = {},
+			maxMembers = LIMIT }
+		for _, uid in ipairs(members(record.hostUserId)) do
+			table.insert(view.members, { userId = uid, name = records[uid].player.DisplayName })
+		end
+		for _, invite in pairs(invitations) do
+			local inviter = records[invite.hostUserId]
+			if invite.targetUserId == id and inviter and invite.expires > now() then
+				table.insert(view.invitations, { id = invite.id, hostUserId = invite.hostUserId,
+					hostName = inviter.player.DisplayName, expiresIn = math.ceil(invite.expires - now()) })
+			end
+		end
+		table.sort(view.invitations, function(a, b) return tonumber(a.id) < tonumber(b.id) end)
+		return view
+	end
+	return self
+end
+
+return OfficeSessions
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX73">
 				<Properties>
 					<string name="Name">OperationManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -8527,7 +8972,7 @@ return OperationManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX71">
+			<Item class="ModuleScript" referent="RBX74">
 				<Properties>
 					<string name="Name">PlayerDataManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -9098,7 +9543,7 @@ return PlayerDataManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX72">
+			<Item class="ModuleScript" referent="RBX75">
 				<Properties>
 					<string name="Name">RandomEventManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -9180,7 +9625,7 @@ return RandomEventManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX73">
+			<Item class="ModuleScript" referent="RBX76">
 				<Properties>
 					<string name="Name">RewardManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -9306,7 +9751,7 @@ return RewardManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX74">
+			<Item class="ModuleScript" referent="RBX77">
 				<Properties>
 					<string name="Name">TerminalAccess</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -9331,7 +9776,11 @@ function TerminalAccess.near(player, terminal): boolean
 	if not root or not humanoid or humanoid.Health <= 0 or not anchor or not anchor:IsDescendantOf(workspace) then
 		return false
 	end
-	if terminal.owner and terminal.owner ~= player.UserId then return false end
+	local position = root.Position
+	if not (math.abs(position.X) < math.huge and math.abs(position.Y) < math.huge and math.abs(position.Z) < math.huge) then return false end
+	if terminal.canAccess then
+		if not terminal.canAccess(player) then return false end
+	elseif terminal.owner and terminal.owner ~= player.UserId then return false end
 	if terminal.canUse and not terminal.canUse(player) then return false end
 	if (root.Position - anchor.Position).Magnitude > (terminal.distance or 10) then return false end
 	local params = RaycastParams.new()
@@ -9365,6 +9814,7 @@ function TerminalAccess.authorize(player, action): boolean
 	if not TerminalAccess.valid(player) then return false end
 	local session = sessions[player]
 	if not permissions[session.terminal.kind][action] then return false end
+	if session.terminal.canAct and not session.terminal.canAct(player, action) then return false end
 	if not TerminalAccess.throttle(player, "action", 0.2) then return false end
 	session.expires = os.clock() + 1800
 	return true
@@ -9392,7 +9842,7 @@ return TerminalAccess
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX75">
+			<Item class="ModuleScript" referent="RBX78">
 				<Properties>
 					<string name="Name">UpgradeManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -9469,11 +9919,11 @@ return UpgradeManager
 				</Properties>
 			</Item>
 		</Item>
-		<Item class="Folder" referent="RBX81">
+		<Item class="Folder" referent="RBX85">
 			<Properties>
 				<string name="Name">DRAG_MY_CONTENTS_INTO_StarterPlayerScripts</string>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX77">
+			<Item class="ModuleScript" referent="RBX80">
 				<Properties>
 					<string name="Name">Interface</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -10396,7 +10846,7 @@ return Interface
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX78">
+			<Item class="ModuleScript" referent="RBX81">
 				<Properties>
 					<string name="Name">Juice</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -10737,7 +11187,7 @@ return Juice
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="LocalScript" referent="RBX79">
+			<Item class="LocalScript" referent="RBX82">
 				<Properties>
 					<string name="Name">MacrosoftClient</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -10757,6 +11207,7 @@ local Juice = require(script.Parent.Juice)
 local T = UIKit.Theme
 
 local ui = Interface.build()
+require(script.Parent.OfficeSessionUI).init(ui)
 Juice.init(ui.gui)
 Juice.attachTicker(ui.ticker.frame, ui.ticker.label)
 
@@ -10771,6 +11222,8 @@ local state = {
 	store = nil,
 	operation = nil,
 	terminal = nil,
+	terminalGuest = false,
+	officeData = nil,
 }
 
 --------------------------------------------------------------------------------
@@ -10861,7 +11314,8 @@ local difficultyButtons = {}
 
 local function refreshDifficultyButtons()
 	for key, entry in pairs(difficultyButtons) do
-		local unlocked = state.data ~= nil and state.data.rankIndex >= entry.info.minRankIndex
+		local account = state.officeData or state.data
+		local unlocked = account ~= nil and account.rankIndex >= entry.info.minRankIndex
 		local selected = state.difficulty == key
 		entry.button.Active = unlocked
 		entry.button.AutoButtonColor = false
@@ -12039,7 +12493,9 @@ local function applyData(data)
 		return
 	end
 	state.data = data
-	state.difficulty = data.settings.difficulty or state.difficulty
+	if not state.officeData or state.officeData.hostUserId == game:GetService("Players").LocalPlayer.UserId then
+		state.difficulty = data.settings.difficulty or state.difficulty
+	end
 	ui.topBar.credits.Text = Util.formatNumber(data.credits) .. " Credits"
 	ui.topBar.rank.Text = data.rankName .. (data.saveDisabled and ("   ⚠ " .. (data.saveNote or "not saving")) or "")
 	ui.topBar.rank.TextColor3 = data.saveDisabled and T.Danger or T.SubText
@@ -12073,7 +12529,21 @@ local function applyData(data)
 	if ui.career.frame.Visible then
 		renderCareer()
 	end
+	if state.officeData and state.officeData.hostUserId ~= game:GetService("Players").LocalPlayer.UserId then
+		ui.topBar.credits.Text = Util.formatNumber(state.officeData.credits) .. " Office Cr"
+		ui.topBar.rank.Text = "Host: " .. state.officeData.hostName .. " | " .. state.officeData.rankName
+		ui.topBar.boost.Visible = false
+	end
 end
+
+Net.event("OfficeDataUpdated").OnClientEvent:Connect(function(view)
+	if not view then return end
+	state.officeData = view
+	ui.topBar.credits.Text = Util.formatNumber(view.credits) .. " Office Cr"
+	ui.topBar.rank.Text = (view.hostUserId ~= game:GetService("Players").LocalPlayer.UserId and ("Host: " .. view.hostName .. " | ") or "")
+		.. view.rankName .. (view.saveDisabled and " | Saving unavailable" or "")
+	refreshDifficultyButtons()
+end)
 
 local function refreshCatalog()
 	local ok, catalog = pcall(function()
@@ -12129,6 +12599,7 @@ local function showTerminalPage(secondary)
 	local kind = state.terminal
 	if not kind or state.inCall then return end
 	hideTerminalPanels()
+	if state.terminalGuest and kind ~= "workstation" then return end
 	if kind == "workstation" and not secondary then
 		ui.home.frame.Visible = true
 		return
@@ -12156,10 +12627,12 @@ end
 Net.event("TerminalOpened").OnClientEvent:Connect(function(payload)
 	terminalRevision += 1
 	state.terminal = payload.kind
+	state.terminalGuest = payload.isGuest == true
 	ui.terminal.frame.Visible = true
 	ui.terminal.title.Text = string.upper(payload.kind) .. " COMPUTER"
 	ui.terminal.primary.Visible = payload.kind == "workstation" or payload.kind == "management"
 	ui.terminal.secondary.Visible = ui.terminal.primary.Visible
+	if state.terminalGuest then ui.terminal.primary.Visible = false; ui.terminal.secondary.Visible = false end
 	ui.terminal.primary.Text = payload.kind == "workstation" and "Calls" or "Premises"
 	ui.terminal.secondary.Text = payload.kind == "workstation" and "Campaigns" or "Desk Upgrades"
 	showTerminalPage(false)
@@ -12274,6 +12747,9 @@ end)
 Net.event("CallEnded").OnClientEvent:Connect(function(payload)
 	exitCall()
 	renderResult(payload)
+	if payload.accountOwnerUserId and payload.accountOwnerUserId ~= game:GetService("Players").LocalPlayer.UserId then
+		toast("Host Office Progress", "This call's reward and progression went to " .. payload.accountOwnerName .. ".", "success")
+	end
 	task.spawn(function()
 		refreshCatalog()
 		refreshStore()
@@ -12282,6 +12758,12 @@ end)
 
 Net.event("Notify").OnClientEvent:Connect(function(payload)
 	toast(payload.title, payload.body, payload.kind)
+end)
+
+Net.event("CallCancelled").OnClientEvent:Connect(function()
+	exitCall()
+	ui.result.frame.Visible = false
+	state.typing = (state.typing or 0) + 1
 end)
 
 Net.event("AchievementUnlocked").OnClientEvent:Connect(function(achievement)
@@ -12385,9 +12867,10 @@ task.spawn(function()
 				rate = -view.summary.heatDecay
 			end
 			view.heat = math.clamp(view.heat + rate * 0.25, 0, view.heatMax)
-			if running and state.data and (view.layLowRemaining or 0) <= 0 then
-				state.data.credits += view.summary.netIncome * 0.25
-				ui.topBar.credits.Text = Util.formatNumber(state.data.credits) .. " Credits"
+			local wallet = state.officeData or state.data
+			if running and wallet and (view.layLowRemaining or 0) <= 0 then
+				wallet.credits += view.summary.netIncome * 0.25
+				ui.topBar.credits.Text = Util.formatNumber(wallet.credits) .. " Office Cr"
 			end
 			renderOperationHud()
 		end
@@ -12424,7 +12907,159 @@ end)
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX80">
+			<Item class="ModuleScript" referent="RBX83">
+				<Properties>
+					<string name="Name">OfficeSessionUI</string>
+					<ProtectedString name="Source"><![CDATA[--!nonstrict
+-- Consent UI and a management-computer access panel. No permanent HUD entry.
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
+local Net = require(Shared.Net)
+local Kit = require(script.Parent.UIKit)
+local T = Kit.Theme
+local OfficeSessionUI = {}
+
+function OfficeSessionUI.init(ui)
+	local state, terminalKind = nil, nil
+	local render
+	local function label(parent, text, y, height)
+		return Kit.label({ Text = text, Position = UDim2.new(0, 18, 0, y), Size = UDim2.new(1, -36, 0, height),
+			TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, TextSize = 16, ZIndex = 82, Parent = parent })
+	end
+	local function button(parent, text, x, y, width, callback)
+		local b = Kit.button({ Text = text, Position = UDim2.new(0, x, 0, y), Size = UDim2.new(0, width, 0, 42),
+			TextSize = 16, BackgroundColor3 = T.AccentDark, ZIndex = 83, Parent = parent })
+		b.Activated:Connect(callback)
+		return b
+	end
+	local function panel(name, width, height)
+		local backdrop = Kit.new("Frame", { Name = name, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0),
+			BackgroundTransparency = 0.35, Visible = false, Active = true, ZIndex = 80, Parent = ui.gui })
+		local body = Kit.panel({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(width, height), ZIndex = 81, Parent = backdrop })
+		local scale = Kit.new("UIScale", { Parent = body })
+		local function resize()
+			local camera = workspace.CurrentCamera
+			if camera then scale.Scale = math.min(1, (camera.ViewportSize.X - 24) / width, (camera.ViewportSize.Y - 40) / height) end
+		end
+		resize()
+		if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize) end
+		return backdrop, body
+	end
+	local function act(action, a, b) Net.event("OfficeAction"):FireServer(action, a, b) end
+	local chooser, choice = panel("OfficeModeChoice", 600, 286)
+	label(choice, "YOUR CALL CENTRE", 18, 28).Font = Enum.Font.GothamBold
+	label(choice, "Choose how to start this session. Your office is private until someone explicitly accepts your invitation.", 58, 58)
+	button(choice, "SOLO", 18, 126, 272, function() act("choose", "solo") end)
+	button(choice, "HOST CO-OP", 310, 126, 272, function() act("choose", "coop") end)
+	label(choice, "Solo can invite later. Co-op uses the host's progression and save. Guests help with calls; their own money and purchases stay separate. Use Office Management to invite or remove players.", 190, 80)
+
+	local access, accessBody = panel("OfficeAccess", 620, 470)
+	label(accessBody, "OFFICE ACCESS", 18, 28).Font = Enum.Font.GothamBold
+	button(accessBody, "Close", 500, 12, 100, function() access.Visible = false end)
+	local summary = label(accessBody, "", 60, 72)
+	local feedback = label(accessBody, "", 132, 26)
+	feedback.TextSize = 13
+	feedback.TextColor3 = T.Accent
+	local list = Kit.new("ScrollingFrame", { Position = UDim2.fromOffset(18, 164), Size = UDim2.new(1, -36, 1, -182),
+		BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 6, ZIndex = 82, Parent = accessBody })
+	Kit.listLayout({ Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }).Parent = list
+	local accessButton = button(ui.terminal.frame, "Invite / Access", 0, -50, 150, function()
+		access.Visible = true
+		task.spawn(function()
+			local ok, view = pcall(function() return Net.func("GetOfficeSession"):InvokeServer() end)
+			if ok and view then state = view; render() end
+		end)
+	end)
+	accessButton.Visible = false
+
+	local invitation, invitationBody = panel("OfficeInvitation", 560, 244)
+	invitation.ZIndex = 90
+	local invitationTitle = label(invitationBody, "", 18, 30)
+	local invitationNote = label(invitationBody, "", 62, 104)
+	local activeInvite
+	button(invitationBody, "Accept invite", 18, 180, 250, function()
+		if activeInvite then act("respond", activeInvite.id, true) end
+	end)
+	button(invitationBody, "Decline", 290, 180, 250, function()
+		if activeInvite then act("respond", activeInvite.id, false) end
+	end)
+
+	render = function()
+		if not state then return end
+		chooser.Visible = state.needsChoice == true
+		summary.Text = string.format("Host: %s | %s\nCalls benefit the host. Only the host spends office credits or uses paid items. Membership lasts for this server session.", state.hostName, state.mode == "coop" and "INVITE-ONLY CO-OP" or "PRIVATE SOLO")
+		for _, child in ipairs(list:GetChildren()) do if child:IsA("GuiObject") then child:Destroy() end end
+		local order = 0
+		local function row(text, actionText, fn)
+			order += 1
+			local card = Kit.panel({ Size = UDim2.new(1, -8, 0, 52), LayoutOrder = order, ZIndex = 83, Parent = list })
+			Kit.label({ Text = text, Position = UDim2.fromOffset(12, 4), Size = UDim2.new(1, -156, 1, -8),
+				TextWrapped = true, TextSize = 15, ZIndex = 84, Parent = card })
+			if fn then
+				local b = button(card, actionText, 0, 5, 126, fn)
+				b.AnchorPoint = Vector2.new(1, 0)
+				b.Position = UDim2.new(1, -8, 0, 5)
+				b.ZIndex = 85
+			end
+		end
+		for _, member in ipairs(state.members or {}) do
+			local canRemove = state.canManageAccess and member.userId ~= state.hostUserId
+			row(member.name .. (member.userId == state.hostUserId and " (HOST)" or " (GUEST)"), "Remove", canRemove and function() act("revoke", member.userId) end or nil)
+		end
+		if not state.isHost then
+			row("Return to your own private office. Your host's progress stays with them.", "Leave co-op", function() act("leave") end)
+		elseif state.canManageAccess then
+			for _, candidate in ipairs(state.candidates or {}) do
+				row("Invite " .. candidate.name, "Invite", function() act("invite", candidate.userId) end)
+			end
+			if #(state.candidates or {}) == 0 then row("No other eligible players in this server.") end
+		else
+			row("Use your own physical Office Management computer to invite or revoke access.")
+		end
+		activeInvite = state.invitations and state.invitations[1]
+		invitation.Visible = activeInvite ~= nil
+		if activeInvite then
+			invitationTitle.Text = activeInvite.hostName .. " invited you"
+			invitationNote.Text = string.format("Join their office as a guest? Calls will earn progress for %s. Your own save and purchases will stay separate. You can leave at their management computer.\nInvitation expires in at most %d seconds.", activeInvite.hostName, activeInvite.expiresIn)
+		end
+	end
+	Net.event("Notify").OnClientEvent:Connect(function(payload)
+		if payload.title == "Office Access" then feedback.Text = payload.body end
+	end)
+	Net.event("OfficeSessionUpdated").OnClientEvent:Connect(function(view)
+		if view then state = view; render() end
+	end)
+	Net.event("TerminalOpened").OnClientEvent:Connect(function(payload)
+		terminalKind = payload.kind
+		feedback.Text = ""
+		accessButton.Visible = terminalKind == "management"
+		access.Visible = payload.isGuest and terminalKind == "management"
+		if accessButton.Visible then
+			task.spawn(function()
+				local ok, view = pcall(function() return Net.func("GetOfficeSession"):InvokeServer() end)
+				if ok and view then state = view; render() end
+			end)
+		end
+	end)
+	Net.event("TerminalClosed").OnClientEvent:Connect(function()
+		terminalKind = nil
+		accessButton.Visible, access.Visible = false, false
+	end)
+	task.spawn(function()
+		for _ = 1, 20 do
+			local ok, view = pcall(function() return Net.func("GetOfficeSession"):InvokeServer() end)
+			if ok and view then state = view; render(); return end
+			task.wait(0.75)
+		end
+	end)
+end
+
+return OfficeSessionUI
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX84">
 				<Properties>
 					<string name="Name">UIKit</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict

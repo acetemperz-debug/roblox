@@ -20,7 +20,11 @@ function TerminalAccess.near(player, terminal): boolean
 	if not root or not humanoid or humanoid.Health <= 0 or not anchor or not anchor:IsDescendantOf(workspace) then
 		return false
 	end
-	if terminal.owner and terminal.owner ~= player.UserId then return false end
+	local position = root.Position
+	if not (math.abs(position.X) < math.huge and math.abs(position.Y) < math.huge and math.abs(position.Z) < math.huge) then return false end
+	if terminal.canAccess then
+		if not terminal.canAccess(player) then return false end
+	elseif terminal.owner and terminal.owner ~= player.UserId then return false end
 	if terminal.canUse and not terminal.canUse(player) then return false end
 	if (root.Position - anchor.Position).Magnitude > (terminal.distance or 10) then return false end
 	local params = RaycastParams.new()
@@ -54,6 +58,7 @@ function TerminalAccess.authorize(player, action): boolean
 	if not TerminalAccess.valid(player) then return false end
 	local session = sessions[player]
 	if not permissions[session.terminal.kind][action] then return false end
+	if session.terminal.canAct and not session.terminal.canAct(player, action) then return false end
 	if not TerminalAccess.throttle(player, "action", 0.2) then return false end
 	session.expires = os.clock() + 1800
 	return true
