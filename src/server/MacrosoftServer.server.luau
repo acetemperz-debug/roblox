@@ -33,6 +33,8 @@ local MonetisationManager = require(Modules.MonetisationManager)
 local CosmeticsManager = require(Modules.CosmeticsManager)
 local OperationManager = require(Modules.OperationManager)
 local HeatManager = require(Modules.HeatManager)
+local TerminalAccess = require(Modules.TerminalAccess)
+local OfficeManager = require(Modules.OfficeManager)
 
 --------------------------------------------------------------------------------
 -- World
@@ -40,48 +42,48 @@ local HeatManager = require(Modules.HeatManager)
 
 local _, shopPrompt, executivePrompt = EnvironmentBuilder.build()
 
-if shopPrompt then
-	shopPrompt.Triggered:Connect(function(player)
-		Net.event("Notify"):FireClient(player, {
-			title = "Upgrade Shop",
-			body = "Shop opened.",
-			kind = "info",
-			openShop = true,
-		})
-	end)
-end
-
-local callCentre = workspace:WaitForChild("CallCentre")
-local workstation = callCentre:WaitForChild("Desks"):WaitForChild("PlayerWorkstation")
-local workstationPrompt = workstation:FindFirstChildWhichIsA("ProximityPrompt", true)
-
-local function startFromDesk(player: Player)
-	local data = PlayerDataManager.get(player)
-	local difficulty = data and data.settings.difficulty or "Normal"
-	local ok, reason = CallManager.start(player, difficulty)
-	if not ok then
-		Net.event("Notify"):FireClient(player, { title = "Cannot Start Call", body = reason, kind = "warn" })
+local function openTerminal(player, terminal)
+	if CallManager.getState(player) then return end
+	if TerminalAccess.open(player, terminal) then
+		Net.event("TerminalOpened"):FireClient(player, { kind = terminal.kind, anchor = terminal.anchor })
 	end
 end
 
-if workstationPrompt then
-	workstationPrompt.Triggered:Connect(startFromDesk)
+OfficeManager.start(openTerminal)
+
+-- Retain the showroom upgrade kiosk and the paid Corner Office workstation.
+for _, entry in ipairs({
+	{ prompt = shopPrompt, kind = "management" },
+	{ prompt = executivePrompt, kind = "workstation", canUse = function(player)
+		return MonetisationManager.owns(player, "corner_office")
+	end },
+}) do
+	if entry.prompt then
+		local terminal = { kind = entry.kind, anchor = entry.prompt.Parent, model = entry.prompt.Parent.Parent, canUse = entry.canUse }
+		entry.prompt.ActionText = "Use Computer"
+		entry.prompt.Triggered:Connect(function(player)
+			if TerminalAccess.throttle(player, "prompt", 0.4) then openTerminal(player, terminal) end
+		end)
+	end
 end
 
--- The Corner Office desk works exactly the same, for players who own the pass.
-if executivePrompt then
-	executivePrompt.Triggered:Connect(function(player)
-		if not MonetisationManager.owns(player, "corner_office") then
-			Net.event("Notify"):FireClient(player, {
-				title = "Corner Office",
-				body = "This desk belongs to Corner Office owners. Check the Robux store.",
-				kind = "warn",
-			})
-			return
-		end
-		startFromDesk(player)
-	end)
+local function closeTerminal(player)
+	TerminalAccess.close(player)
+	if CallManager.getState(player) then CallManager.hangUp(player) end
+	Net.event("TerminalClosed"):FireClient(player)
 end
+
+Net.event("CloseTerminal").OnServerEvent:Connect(closeTerminal)
+Players.PlayerRemoving:Connect(function(player) TerminalAccess.remove(player) end)
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		for _, player in ipairs(Players:GetPlayers()) do
+			if TerminalAccess.current(player) and not TerminalAccess.valid(player) then closeTerminal(player) end
+		end
+	end
+end)
 
 -- The live ticker. Everyone sees everyone else's big moments, which is most of
 -- what makes a server feel alive.
@@ -163,6 +165,7 @@ end)
 
 OperationManager.Changed.Event:Connect(function(player, view)
 	Net.event("OperationUpdated"):FireClient(player, view)
+	OfficeManager.update(player, view)
 end)
 
 OperationManager.OfflineEarnings.Event:Connect(function(player, amount, seconds)
@@ -180,6 +183,7 @@ end)
 OperationManager.Raided.Event:Connect(function(player, outcome)
 	Net.event("RaidAlert"):FireClient(player, outcome)
 	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(player))
+	OfficeManager.update(player, OperationManager.view(player))
 	-- Everyone gets to watch the car turn up.
 	EnvironmentBuilder.showRaid(player.DisplayName, outcome.escaped and 12 or Operation.Raid.ShutdownSeconds)
 	broadcast(
@@ -248,6 +252,7 @@ end)
 --------------------------------------------------------------------------------
 
 Net.event("StartCall").OnServerEvent:Connect(function(player, difficultyKey)
+	if not TerminalAccess.authorize(player, "StartCall") then return end
 	if typeof(difficultyKey) ~= "string" then
 		return
 	end
@@ -262,7 +267,7 @@ Net.event("StartCall").OnServerEvent:Connect(function(player, difficultyKey)
 end)
 
 Net.event("ChooseOption").OnServerEvent:Connect(function(player, index)
-	if typeof(index) ~= "number" then
+	if not TerminalAccess.authorize(player, "ChooseOption") or not TerminalAccess.finiteInteger(index, 1, 4) then
 		return
 	end
 	CallManager.choose(player, math.floor(index))
@@ -273,6 +278,7 @@ Net.event("HangUp").OnServerEvent:Connect(function(player)
 end)
 
 Net.event("PurchaseUpgrade").OnServerEvent:Connect(function(player, upgradeId)
+	if not TerminalAccess.authorize(player, "PurchaseUpgrade") then return end
 	if typeof(upgradeId) ~= "string" then
 		return
 	end
@@ -288,6 +294,7 @@ Net.event("PurchaseUpgrade").OnServerEvent:Connect(function(player, upgradeId)
 end)
 
 Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
+	if not TerminalAccess.authorize(player, "SetDifficulty") then return end
 	if typeof(key) ~= "string" or not Difficulty.Levels[key] then
 		return
 	end
@@ -305,6 +312,7 @@ Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
 end)
 
 Net.event("PromptPurchase").OnServerEvent:Connect(function(player, kind, itemId)
+	if not TerminalAccess.authorize(player, "PromptPurchase") then return end
 	if typeof(kind) ~= "string" or typeof(itemId) ~= "string" then
 		return
 	end
@@ -322,6 +330,7 @@ Net.event("PromptPurchase").OnServerEvent:Connect(function(player, kind, itemId)
 end)
 
 Net.event("UseItem").OnServerEvent:Connect(function(player, productId)
+	if not TerminalAccess.authorize(player, "UseItem") then return end
 	if typeof(productId) ~= "string" then
 		return
 	end
@@ -334,6 +343,7 @@ Net.event("UseItem").OnServerEvent:Connect(function(player, productId)
 end)
 
 Net.event("SetAlias").OnServerEvent:Connect(function(player, alias)
+	if not TerminalAccess.throttle(player, "alias", 2) then return end
 	if typeof(alias) ~= "string" then
 		return
 	end
@@ -414,10 +424,11 @@ Net.event("OperationAction").OnServerEvent:Connect(function(player, action, a, b
 	if not handler then
 		return
 	end
+	if not TerminalAccess.authorize(player, action) then return end
 	if a ~= nil and typeof(a) ~= "string" then
 		return
 	end
-	if b ~= nil and typeof(b) ~= "number" then
+	if b ~= nil and not TerminalAccess.finiteInteger(b, 1, 25) then
 		return
 	end
 
@@ -435,6 +446,7 @@ Net.event("OperationAction").OnServerEvent:Connect(function(player, action, a, b
 end)
 
 Net.event("RequestData").OnServerEvent:Connect(function(player)
+	if not TerminalAccess.throttle(player, "data", 1) then return end
 	PlayerDataManager.notify(player)
 end)
 

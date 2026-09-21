@@ -15,6 +15,28 @@ function methods:GetChildren()
 	return rawget(self, "_children")
 end
 
+function methods:GetDescendants()
+	local out = {}
+	for _, child in ipairs(self:GetChildren()) do
+		table.insert(out, child)
+		for _, descendant in ipairs(child:GetDescendants()) do table.insert(out, descendant) end
+	end
+	return out
+end
+
+function methods:IsA(className)
+	return self.ClassName == className or (className == "BasePart" and (self.ClassName == "Part" or self.ClassName == "SpawnLocation"))
+end
+
+function methods:IsDescendantOf(parent)
+	local cursor = self.Parent
+	while cursor do
+		if cursor == parent then return true end
+		cursor = cursor.Parent
+	end
+	return false
+end
+
 function methods:FindFirstChild(name)
 	for _, child in ipairs(rawget(self, "_children")) do
 		if child.Name == name then
@@ -28,16 +50,27 @@ function methods:WaitForChild(name)
 	return self:FindFirstChild(name)
 end
 
-function methods:FindFirstChildWhichIsA(className)
+function methods:FindFirstChildWhichIsA(className, recursive)
 	for _, child in ipairs(rawget(self, "_children")) do
 		if rawget(child, "ClassName") == className then
 			return child
+		end
+		if recursive then
+			local found = child:FindFirstChildWhichIsA(className, true)
+			if found then return found end
 		end
 	end
 	return nil
 end
 
 function methods:Destroy()
+	for _, child in ipairs(table.clone(self:GetChildren())) do child:Destroy() end
+	local parent = rawget(self, "Parent")
+	if parent then
+		local index = table.find(parent:GetChildren(), self)
+		if index then table.remove(parent:GetChildren(), index) end
+	end
+	rawset(self, "Parent", nil)
 	rawset(self, "_children", {})
 end
 
@@ -76,8 +109,9 @@ function methods:GetAttribute(key)
 end
 
 local instanceMeta = {
-	__index = function(_, key)
-		return methods[key]
+	__index = function(self, key)
+		if key == "Position" and rawget(self, "CFrame") then return rawget(self, "CFrame").Position end
+		return methods[key] or methods.FindFirstChild(self, key)
 	end,
 	__newindex = function(self, key, value)
 		if key == "Parent" and value ~= nil and type(value) == "table" and value.GetChildren then
@@ -114,6 +148,12 @@ local function newInstance(className)
 		rawset(signal, "_attributes", {})
 		rawset(signal, "_log", {})
 		rawset(self, "OnServerEvent", signal)
+	end
+	if className == "ProximityPrompt" then
+		local signal = setmetatable({}, instanceMeta)
+		rawset(signal, "_connections", {})
+		rawset(signal, "_children", {})
+		rawset(self, "Triggered", signal)
 	end
 	return self
 end
@@ -225,20 +265,27 @@ function Stub.install()
 		fromHSV = colour,
 		new = colour,
 	}
-	Vector3 = { new = function(x, y, z)
-		return { X = x, Y = y, Z = z }
-	end }
+	local vectorMeta = {}
+	vectorMeta.__sub = function(a, b) return Vector3.new(a.X - b.X, a.Y - b.Y, a.Z - b.Z) end
+	vectorMeta.__add = function(a, b) return Vector3.new(a.X + b.X, a.Y + b.Y, a.Z + b.Z) end
+	vectorMeta.__index = function(a, key)
+		if key == "Magnitude" then return math.sqrt(a.X * a.X + a.Y * a.Y + a.Z * a.Z) end
+	end
+	Vector3 = { new = function(x, y, z) return setmetatable({ X = x, Y = y, Z = z }, vectorMeta) end }
 	Vector2 = { new = function(x, y)
 		return { X = x, Y = y }
 	end }
+	local frameMeta = { __mul = function(a, b) return CFrame.new(a.X + b.X, a.Y + b.Y, a.Z + b.Z) end }
 	CFrame = {
 		new = function(x, y, z)
-			return { X = x or 0, Y = y or 0, Z = z or 0 }
+			return setmetatable({ X = x or 0, Y = y or 0, Z = z or 0, Position = Vector3.new(x or 0, y or 0, z or 0) }, frameMeta)
 		end,
 		Angles = function()
-			return {}
+			return CFrame.new()
 		end,
 	}
+	RaycastParams = { new = function() return {} end }
+	services.Workspace.Raycast = function() return nil end
 	UDim = { new = function(a, b)
 		return { Scale = a, Offset = b }
 	end }

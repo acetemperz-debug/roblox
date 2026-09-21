@@ -28,7 +28,7 @@ local SERVER = {
 	"PlayerDataManager", "NPCGenerator", "NPCPersonalitySystem", "DialogueManager",
 	"RandomEventManager", "RewardManager", "UpgradeManager", "AchievementManager",
 	"CallManager", "LeaderboardManager", "EnvironmentBuilder", "OperationManager",
-	"HeatManager",
+	"HeatManager", "TerminalAccess", "LeaderboardRank", "OfficeManager",
 }
 
 local sharedFolder = Stub.newInstance("Folder")
@@ -859,6 +859,144 @@ for _ in pairs(seenSituations) do
 	situationCoverage += 1
 end
 check("most situations appear", situationCoverage >= DialogueLibrary.count() - 6, situationCoverage .. "/" .. DialogueLibrary.count())
+
+print("\nPhysical terminal security")
+do
+	local access = require(serverFolder.TerminalAccess)
+	local actor = { UserId = 9001 }
+	local character = Stub.newInstance("Model")
+	local root = Stub.newInstance("Part")
+	root.Name = "HumanoidRootPart"
+	root.Position = Vector3.new(0, 0, 0)
+	root.Parent = character
+	local humanoid = Stub.newInstance("Humanoid")
+	humanoid.Health = 100
+	humanoid.Parent = character
+	actor.Character = character
+	local anchor = Stub.newInstance("Part")
+	anchor.Position = Vector3.new(0, 0, 5)
+	anchor.Parent = workspace
+	local terminal = { kind = "workstation", owner = 9001, anchor = anchor }
+	check("remote call without a prompt session is denied", not access.authorize(actor, "StartCall"))
+	check("nearby owner can open workstation", access.open(actor, terminal))
+	check("workstation starts calls", access.authorize(actor, "StartCall"))
+	check("rapid replay is denied", not access.authorize(actor, "StartCall"))
+	check("workstation cannot hire or purchase", not access.authorize(actor, "hire") and not access.authorize(actor, "PromptPurchase"))
+	root.Position = Vector3.new(50, 0, 0)
+	check("moving away revokes session", not access.valid(actor))
+	check("forged prompt from afar is denied", not access.open(actor, terminal))
+	root.Position = Vector3.new(0, 0, 0)
+	terminal.owner = 9002
+	check("another player's desk is denied", not access.open(actor, terminal))
+	terminal.owner = 9001
+	workspace.Raycast = function() return {} end
+	check("interaction through a wall is denied", not access.open(actor, terminal))
+	workspace.Raycast = function() return nil end
+	humanoid.Health = 0
+	check("dead characters cannot interact", not access.open(actor, terminal))
+	humanoid.Health = 100
+	access.remove(actor)
+	access.open(actor, terminal)
+	actor.Character = Stub.newInstance("Model")
+	check("respawning invalidates old sessions", not access.valid(actor))
+	actor.Character = character
+	access.remove(actor)
+	terminal.canUse = function() return false end
+	check("premium workstation entitlement is checked", not access.open(actor, terminal))
+	terminal.canUse = nil
+	for _, spec in ipairs({ { "hr", "hire", "StartCall" }, { "management", "PurchaseUpgrade", "buySecurity" },
+		{ "security", "layLow", "buyFacility" }, { "premium", "PromptPurchase", "setMethod" } }) do
+		access.remove(actor)
+		terminal.kind = spec[1]
+		access.open(actor, terminal)
+		check(spec[1] .. " permits only its own actions", access.authorize(actor, spec[2]) and not access.authorize(actor, spec[3]))
+	end
+	check("NaN infinity fractions and oversized hires are denied", not access.finiteInteger(0 / 0, 1, 25)
+		and not access.finiteInteger(math.huge, 1, 25) and not access.finiteInteger(1.5, 1, 25)
+		and not access.finiteInteger(26, 1, 25) and access.finiteInteger(25, 1, 25))
+	anchor:Destroy()
+	check("destroyed terminals revoke access", not access.valid(actor))
+	access.remove(actor)
+end
+
+print("\nGlobal personal rank")
+do
+	local ranker = require(serverFolder.LeaderboardRank)
+	local values = {}
+	for i = 1, 235 do table.insert(values, { key = tostring(i), value = 1000 - i }) end
+	table.insert(values, { key = "tie", value = 765 })
+	local store = { GetSortedAsync = function(_, ascending, size, minimum)
+		assert(not ascending and size == 100)
+		local entries = {}
+		for _, entry in ipairs(values) do if entry.value >= minimum then table.insert(entries, entry) end end
+		local cursor = 1
+		local pages = { IsFinished = #entries <= size }
+		function pages:GetCurrentPage()
+			local page = {}
+			for i = cursor, math.min(cursor + size - 1, #entries) do table.insert(page, entries[i]) end
+			return page
+		end
+		function pages:AdvanceToNextPageAsync()
+			cursor += size
+			self.IsFinished = cursor + size - 1 >= #entries
+		end
+		return pages
+	end }
+	check("rank beyond Top 10 scans every page", ranker.calculate(store, 764) == 237)
+	check("tied scores share competition rank", ranker.calculate(store, 765) == 235)
+	check("highest score is rank one", ranker.calculate(store, 1001) == 1)
+	check("zero score is unranked", ranker.calculate(store, 0) == nil)
+	check("API failure never invents a rank", ranker.calculate({ GetSortedAsync = function() error("throttled") end }, 2) == nil)
+	check("cancelled lookup never returns partial rank", ranker.calculate(store, 764, function() return false end) == nil)
+end
+
+print("\nOffice construction and saved roster")
+do
+	local environment = require(serverFolder.EnvironmentBuilder)
+	local offices = require(serverFolder.OfficeManager)
+	local root = environment.build()
+	offices.start(function() end)
+	local owner = { UserId = 9101, Name = "OfficeTest", DisplayName = "Office Test" }
+	PlayerDataManager.load(owner)
+	local profile = PlayerDataManager.get(owner)
+	profile.credits = 1000000000
+	offices.update(owner, OperationManager.view(owner))
+	local office = root:FindFirstChild("Office_9101")
+	check("starter office has no decorative hired workers", #office.HiredEmployees:GetChildren() == 0)
+	local desk = office:FindFirstChild("CALLS + CAMPAIGNS")
+	check("personal terminal has server owner identity", desk:GetAttribute("OwnerUserId") == 9101)
+	OperationManager.hire(owner, Operation.Employees[1].id, 2)
+	offices.update(owner, OperationManager.view(owner))
+	check("every hired employee visibly occupies a desk", #office.HiredEmployees:GetChildren() == 2)
+	local staff = office.HiredEmployees
+	offices.update(owner, OperationManager.view(owner))
+	check("income updates do not rebuild staff", office.HiredEmployees == staff)
+	OperationManager.fire(owner, Operation.Employees[1].id, 1)
+	offices.update(owner, OperationManager.view(owner))
+	check("fired staff disappear", #office.HiredEmployees:GetChildren() == 1)
+	local previousDepth = office.Premises.Floor.Size.Z
+	for index = 2, #Operation.Facilities do
+		local facility = Operation.Facilities[index]
+		OperationManager.buyFacility(owner, facility.id)
+		offices.update(owner, OperationManager.view(owner))
+		local desks = 0
+		for _, child in ipairs(office.Premises:GetChildren()) do if string.match(child.Name, "^StaffDesk_") then desks += 1 end end
+		check("facility " .. index .. " presents its full desk capacity", desks == facility.desks)
+	end
+	check("headquarters is larger than the starter office", office.Premises.Floor.Size.Z > previousDepth)
+	check("expanding keeps active terminal instances stable", office:FindFirstChild("CALLS + CAMPAIGNS") == desk)
+	profile.operation.staff = { [Operation.Employees[7].id] = 90 }
+	offices.update(owner, OperationManager.view(owner))
+	check("full headquarters presents all 90 employees", #office.HiredEmployees:GetChildren() == 90)
+	profile.operation.staff = {}
+	profile.operation.shutdownUntil = os.time() + 60
+	offices.update(owner, OperationManager.view(owner))
+	check("raid losses and shutdown update the visible floor", #office.HiredEmployees:GetChildren() == 0 and office.HiredEmployees:GetAttribute("Paused"))
+	local other = { UserId = 9102, Name = "Other", DisplayName = "Other" }
+	PlayerDataManager.load(other)
+	offices.update(other, OperationManager.view(other))
+	check("players have independent offices", root.Office_9102 ~= office and root.Office_9102.Premises.Floor.Size.Z < office.Premises.Floor.Size.Z)
+end
 
 print("")
 if failures == 0 then

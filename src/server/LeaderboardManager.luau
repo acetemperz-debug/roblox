@@ -11,9 +11,12 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShare
 local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local Difficulty = require(Shared.Difficulty)
+local Net = require(Shared.Net)
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local EnvironmentBuilder = require(script.Parent.EnvironmentBuilder)
+local TerminalAccess = require(script.Parent.TerminalAccess)
+local LeaderboardRank = require(script.Parent.LeaderboardRank)
 
 local LeaderboardManager = {}
 
@@ -64,6 +67,8 @@ end
 LeaderboardManager.Boards = BOARDS
 
 local stores = {}
+local rankBusy = {}
+local rankCache = {}
 
 local function getStore(key: string)
 	if stores[key] ~= nil then
@@ -139,20 +144,64 @@ function LeaderboardManager.refresh()
 end
 
 function LeaderboardManager.start()
+	local boards = EnvironmentBuilder.getRoot():FindFirstChild("Leaderboards")
+	for _, spec in ipairs(BOARDS) do
+		local board = boards and boards:FindFirstChild(spec.name)
+		if board then
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.ActionText = "Show My Global Rank"
+			prompt.ObjectText = spec.name
+			prompt.MaxActivationDistance = 16
+			prompt.RequiresLineOfSight = false
+			prompt.Parent = board
+			prompt.Triggered:Connect(function(player)
+				local terminal = { anchor = board, distance = 18 }
+				if rankBusy[player] or not TerminalAccess.near(player, terminal)
+					or not TerminalAccess.throttle(player, "rank", 3) then return end
+				local data = PlayerDataManager.get(player)
+				if not data then return end
+				local function send(text)
+					if player.Parent then Net.event("LeaderboardRank"):FireClient(player, { board = spec.name, text = text }) end
+				end
+				local score = math.floor(spec.value(data.stats))
+				local cache = rankCache[player] and rankCache[player][spec.name]
+				if cache and cache.score == score and os.clock() - cache.time < 90 then send(cache.text); return end
+				local store = getStore(spec.key)
+				if not store or data.loadFailed or data.saveDisabled then send("Global rank needs DataStore access"); return end
+				rankBusy[player] = true
+				send("Finding YOUR global rank...")
+				task.spawn(function()
+					local deadline = os.clock() + 45
+					local rank, text = LeaderboardRank.calculate(store, score, function()
+						return player.Parent ~= nil and os.clock() < deadline and TerminalAccess.near(player, terminal)
+					end)
+					text ..= "  |  " .. Util.formatNumber(score) .. spec.suffix
+					if player.Parent and rank then
+						rankCache[player] = rankCache[player] or {}
+						rankCache[player][spec.name] = { score = score, time = os.clock(), text = text }
+					end
+					send(text)
+					rankBusy[player] = nil
+				end)
+			end)
+		end
+	end
+
 	task.spawn(function()
 		while true do
+			for _, player in ipairs(Players:GetPlayers()) do LeaderboardManager.publish(player) end
 			LeaderboardManager.refresh()
 			task.wait(90)
 		end
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		rankBusy[player] = nil
+		rankCache[player] = nil
 		LeaderboardManager.publish(player)
 	end)
 
-	-- A first refresh straight away so the boards are not blank while the first
-	-- 90-second cycle runs.
-	task.spawn(LeaderboardManager.refresh)
+-- The loop above performs the initial refresh as well.
 end
 
 return LeaderboardManager

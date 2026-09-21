@@ -2,6 +2,50 @@
 
 Four ways in, fastest first.
 
+## 1.4.0 validation and physical-terminal checklist
+
+Automated checks run against the real Luau modules with `tests/RobloxStub.luau`:
+the original 1,200-call simulation, economy/raid/premium regressions, terminal
+ownership, permissions, rate limits, range, line of sight, death/respawn,
+invalid numeric inputs, rank pagination/ties/failures, all seven office sizes,
+90 workers, roster changes and independent player offices. The stub checks
+construction and state; it does not render Roblox or simulate physics.
+
+Run `./tests/run.ps1` on Windows or `./tests/run.sh` with the existing Unix
+toolchain. The Windows runner also builds `default.project.json` with Rojo.
+Both regenerate the place/model and installer manifest from `src/`.
+
+Live Roblox Studio rendering, multiplayer networking and live DataStore ranks
+still require this playtest; they were not verified by the headless run:
+
+1. Start a two-player local server. Both players should spawn in separate small
+   offices with empty staff desks. Use the cyan Calls + Campaigns computer;
+   choose a difficulty and start a call. All dialogue/choices/rewards remain.
+2. Walk away during a call, reset the character, then try an action from the old
+   panel. The line must disconnect and the panel close. A remote StartCall or
+   PurchaseUpgrade without a prompt session must do nothing.
+3. Try another player's terminal, a terminal through a wall, and a forged remote
+   for HR while using security. No money, staff or upgrades should change.
+4. Hire at HR, fire staff, and expand at Management. Visible staff must match
+   the saved roster; desks increase to 3/6/12/22/36/56/90. Buy desk upgrades and
+   inspect the larger monitor. Rejoin to verify the same operation restores.
+5. Use Security for Lay Low and owned lawyer consumables. Force a raid using
+   the command below; check the fine, removed workers, paused income and alarm.
+6. Visit the physical Premium Kiosk; verify configured products, owned passes,
+   receipt persistence and existing in-call consumables. The existing paid
+   Corner Office workstation is still in the lobby and checks pass ownership.
+7. Use the purple lift. Inspect each board: Top 10 plus your personal row after
+   interaction. Seed more than 100 test scores to check a low personal rank,
+   tied scores and pagination. Different players must see different own rows.
+8. Disable API access: show unavailable/unranked feedback rather than a fake
+   number. Rank lookup cancels when the viewer leaves or the lookup times out;
+   interacting again retries. No partial rank is displayed on failure.
+9. Inspect phone/tablet emulation and gamepad navigation. Native proximity
+   prompts support touch/controller; check panel text, buttons, scrolling and
+   camera visibility at the intended device sizes before publishing.
+
+The source branch has not been merged or the Roblox experience published.
+
 ---
 
 ## 0. Paste the installer into the Studio command bar (~20 seconds)
@@ -23,7 +67,7 @@ Requirements and caveats:
   and model files below still work).
 * It needs **Allow HTTP Requests**. The loader turns that on itself if it can,
   and tells you where the setting is if it cannot.
-* It is pinned to the branch `claude/roblox-scam-call-centre-yx6beg`. Change
+* It is pinned to the branch `codex/physical-terminals-neon-tycoon`. Change
   `BASE` in the loader if you move the code.
 * It installs into the place you currently have open, so it is also the answer
   for "add this to my existing place".
@@ -101,9 +145,9 @@ half an hour.
 
 ### The call game (2 minutes)
 
-1. A top bar appears with Credits, your rank and five buttons. Bottom right is
-   the difficulty picker and **START CALL**. Bottom left is the operation HUD.
-2. Click **START CALL**. You get a random caller with a name, age, personality,
+1. The HUD shows Credits, rank, career/help, income and police heat. Walk to
+   **Calls + Campaigns** and interact to open the difficulty picker.
+2. Click **START CALL** at that computer. You get a random caller with a name, age, personality,
    mood and backstory, three meters, and up to four dialogue choices.
 3. Pick the polite, patient lines on a friendly caller — Trust climbs.
 4. Pick the all-caps aggressive line — Suspicion spikes, and on Easy/Normal the
@@ -114,15 +158,15 @@ half an hour.
 
 ### The tycoon layer (3 minutes)
 
-7. **Operation → Staff → Hire** a Work Experience Kid (750 Credits). The HUD
+7. At **HR / Recruitment**, hire a Work Experience Kid (750 Credits). The HUD
    income line goes to `+1.5 /sec` and Credits start climbing on their own.
 8. Hire until it refuses — the Back Room has 3 desks. Buy **Premises → Small
-   Office** for more.
+   Office** at the management computer for more.
 9. The heat line should read *cooling off*. That is correct: a tiny operation
    draws no police attention. Nobody gets raided in their first session.
-10. Switch to a higher **Method** once you have the rank and the Credits. Heat
+10. Switch to a higher **Method** at Calls + Campaigns once you have the rank and the Credits. Heat
     starts climbing and the HUD estimates a time to raid.
-11. Buy a **Security** upgrade or two and watch the heat rate fall and the
+11. Buy an upgrade at the **Security** computer and watch the heat rate fall and the
     escape chance in the Operation header rise.
 
 ### Seeing a raid without waiting

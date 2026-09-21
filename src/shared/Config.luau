@@ -5,7 +5,7 @@
 
 local Config = {}
 
-Config.Version = "1.3.3"
+Config.Version = "1.4.0"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
@@ -105,7 +105,7 @@ Config.UI = {
 		Background = Color3.fromRGB(18, 20, 28),
 		Panel = Color3.fromRGB(28, 31, 42),
 		PanelLight = Color3.fromRGB(38, 42, 56),
-		Accent = Color3.fromRGB(86, 140, 255),
+		Accent = Color3.fromRGB(28, 189, 208),
 		AccentDark = Color3.fromRGB(52, 96, 190),
 		Trust = Color3.fromRGB(88, 214, 141),
 		Suspicion = Color3.fromRGB(231, 91, 91),
@@ -131,22 +131,22 @@ Config.UI = {
 --   * A Neon part renders at its own colour with full emission, so a near-white
 --     Neon screen blooms into a shapeless blob. Neon wants a MID colour.
 Config.Environment = {
-	Ambient = Color3.fromRGB(104, 108, 126),
+	Ambient = Color3.fromRGB(120, 107, 139),
 	OutdoorAmbient = Color3.fromRGB(94, 98, 116),
 	Brightness = 2,
-	ClockTime = 15,
+	ClockTime = 17.4,
 	FogEnd = 500,
 
 	-- Ceiling fixtures: all of them glow, a sparse grid actually casts light.
-	CeilingLightColour = Color3.fromRGB(198, 216, 240),
+	CeilingLightColour = Color3.fromRGB(255, 218, 167),
 	CeilingLightBrightness = 0.5,
 	CeilingLightRange = 26,
 
 	-- Monitors. Mid-blue, not white: this is what stops the blobbing.
 	ScreenColour = Color3.fromRGB(58, 112, 178),
 	-- Wall trim strips, dimmed so they read as trim and not as lasers.
-	StripColourA = Color3.fromRGB(52, 96, 178),
-	StripColourB = Color3.fromRGB(150, 64, 118),
+	StripColourA = Color3.fromRGB(25, 199, 220),
+	StripColourB = Color3.fromRGB(218, 57, 153),
 
 	Bloom = { Intensity = 0.22, Size = 10, Threshold = 2 },
 	Colour = { Saturation = 0.12, Contrast = 0.04, Brightness = 0.015 },

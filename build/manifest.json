@@ -26,14 +26,14 @@
 			"target": "shared"
 		},
 		{
-			"path": "src/shared/NPCNames.luau",
-			"name": "NPCNames",
+			"path": "src/shared/Net.luau",
+			"name": "Net",
 			"class": "ModuleScript",
 			"target": "shared"
 		},
 		{
-			"path": "src/shared/Net.luau",
-			"name": "Net",
+			"path": "src/shared/NPCNames.luau",
+			"name": "NPCNames",
 			"class": "ModuleScript",
 			"target": "shared"
 		},
@@ -122,6 +122,12 @@
 			"target": "server"
 		},
 		{
+			"path": "src/server/LeaderboardRank.luau",
+			"name": "LeaderboardRank",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
 			"path": "src/server/MacrosoftServer.server.luau",
 			"name": "MacrosoftServer",
 			"class": "Script",
@@ -146,6 +152,12 @@
 			"target": "server"
 		},
 		{
+			"path": "src/server/OfficeManager.luau",
+			"name": "OfficeManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
 			"path": "src/server/OperationManager.luau",
 			"name": "OperationManager",
 			"class": "ModuleScript",
@@ -166,6 +178,12 @@
 		{
 			"path": "src/server/RewardManager.luau",
 			"name": "RewardManager",
+			"class": "ModuleScript",
+			"target": "server"
+		},
+		{
+			"path": "src/server/TerminalAccess.luau",
+			"name": "TerminalAccess",
 			"class": "ModuleScript",
 			"target": "server"
 		},

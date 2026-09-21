@@ -7,6 +7,7 @@
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
 local Config = require(Shared.Config)
@@ -24,7 +25,7 @@ local THEME = {
 	Carpet = Color3.fromRGB(42, 47, 64),
 	-- Mid-tone walls. The old near-white ones plus 25 point lights washed the
 	-- whole room out to a flat white.
-	Wall = Color3.fromRGB(78, 84, 104),
+	Wall = Color3.fromRGB(66, 47, 107),
 	WallTrim = Color3.fromRGB(52, 57, 74),
 	Desk = Color3.fromRGB(124, 96, 70),
 	DeskLegs = Color3.fromRGB(70, 74, 86),
@@ -32,7 +33,7 @@ local THEME = {
 	Screen = Config.Environment.ScreenColour,
 	Chair = Color3.fromRGB(38, 42, 54),
 	Glass = Color3.fromRGB(180, 220, 235),
-	Accent = Color3.fromRGB(86, 140, 255),
+	Accent = Color3.fromRGB(38, 220, 231),
 }
 
 local function part(props): BasePart
@@ -157,7 +158,7 @@ local function buildEmployee(parent: Instance, cframe: CFrame, name: string)
 	local model = Instance.new("Model")
 	model.Name = "Employee_" .. name
 
-	local shirtColour = Color3.fromHSV(Util.newRandom():NextNumber(), 0.35, 0.8)
+	local shirtColour = Color3.fromHSV(Util.newRandom():NextNumber(), 0.7, 0.95)
 
 	local torso = part({
 		Size = Vector3.new(2, 2, 1),
@@ -433,6 +434,9 @@ local function buildShopKiosk(parent: Instance)
 		Name = "Counter",
 	})
 	label(counter, "DESK UPGRADES", Enum.NormalId.Front, THEME.Accent)
+	local screen = part({ Size = Vector3.new(4, 2.5, 0.3), CFrame = CFrame.new(-25, 5.4, -45.5),
+		Color = THEME.Screen, Material = Enum.Material.Neon, Parent = kiosk, Name = "ManagementComputer" })
+	label(screen, "OFFICE\nMANAGEMENT", Enum.NormalId.Front, Color3.fromRGB(255, 220, 110))
 
 	local board = part({
 		Size = Vector3.new(14, 8, 0.4),
@@ -484,7 +488,7 @@ local function buildLeaderboards(parent: Instance)
 		local gui = Instance.new("SurfaceGui")
 		gui.Name = "Board"
 		gui.Face = spec.face
-		gui.CanvasSize = Vector2.new(400, 300)
+		gui.CanvasSize = Vector2.new(500, 380)
 		gui.LightInfluence = 0
 		gui.Parent = board
 
@@ -500,7 +504,7 @@ local function buildLeaderboards(parent: Instance)
 		local list = Instance.new("TextLabel")
 		list.Name = "Entries"
 		list.Position = UDim2.new(0, 10, 0, 45)
-		list.Size = UDim2.new(1, -20, 1, -55)
+		list.Size = UDim2.new(1, -20, 1, -100)
 		list.BackgroundTransparency = 1
 		list.Font = Enum.Font.Gotham
 		list.TextSize = 18
@@ -509,6 +513,18 @@ local function buildLeaderboards(parent: Instance)
 		list.TextYAlignment = Enum.TextYAlignment.Top
 		list.Text = "Loading..."
 		list.Parent = gui
+
+		local own = Instance.new("TextLabel")
+		own.Name = "YourRank"
+		own.Position = UDim2.new(0, 10, 1, -45)
+		own.Size = UDim2.new(1, -20, 0, 40)
+		own.BackgroundColor3 = Color3.fromRGB(51, 40, 83)
+		own.TextColor3 = Color3.fromRGB(255, 206, 86)
+		own.Font = Enum.Font.GothamBold
+		own.TextSize = 18
+		own.TextWrapped = true
+		own.Text = "Use this board to see YOUR global rank"
+		own.Parent = gui
 	end
 
 	boards.Parent = parent
@@ -633,8 +649,18 @@ local function setEmployeeState(employee, state: string)
 	end
 end
 
+local animationElapsed = 0
 local function animateEmployees(dt: number)
+	animationElapsed += dt
+	if animationElapsed < 0.15 then return end
+	dt = animationElapsed
+	animationElapsed = 0
 	local now = os.clock()
+	local viewers = {}
+	for _, player in ipairs(Players:GetPlayers()) do
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if root then table.insert(viewers, root.Position) end
+	end
 
 	if raidLight and raidLight.Parent then
 		raidLight.Color = (math.floor(now * 3) % 2 == 0)
@@ -643,6 +669,15 @@ local function animateEmployees(dt: number)
 	end
 
 	for _, employee in ipairs(employees) do
+		if not employee.model.Parent or employee.model.Parent:GetAttribute("Paused") then
+			employee.bubble.Visible = false
+			continue
+		end
+		local visible = false
+		for _, position in ipairs(viewers) do
+			if (position - employee.baseCFrame.Position).Magnitude < 120 then visible = true; break end
+		end
+		if not visible then continue end
 		employee.stateTimer -= dt
 		if employee.stateTimer <= 0 then
 			setEmployeeState(employee, Util.pick(EMPLOYEE_STATES))
@@ -756,12 +791,13 @@ function EnvironmentBuilder.build()
 					Parent = desk,
 					Name = "Nameplate",
 				})
-				label(nameplate, "YOUR DESK", Enum.NormalId.Front)
+				label(nameplate, "SHOWROOM", Enum.NormalId.Front)
 
 				local prompt = Instance.new("ProximityPrompt")
 				prompt.Name = "WorkstationPrompt"
-				prompt.ActionText = "Start Call"
-				prompt.ObjectText = "Your Workstation"
+				prompt.ActionText = "Visit Your Office Lift"
+				prompt.ObjectText = "Demo Workstation"
+				prompt.Enabled = false
 				prompt.HoldDuration = 0
 				prompt.MaxActivationDistance = 12
 				prompt.RequiresLineOfSight = false
@@ -865,6 +901,19 @@ function EnvironmentBuilder.setLeaderboard(boardName: string, text: string)
 	local entries = gui and gui:FindFirstChild("Entries")
 	if entries then
 		entries.Text = text
+	end
+end
+
+-- Shared construction primitives let personal offices use the established art
+-- and animation system instead of introducing a second environment architecture.
+EnvironmentBuilder.part = part
+EnvironmentBuilder.label = label
+EnvironmentBuilder.buildDesk = buildDesk
+EnvironmentBuilder.buildEmployee = buildEmployee
+
+function EnvironmentBuilder.removeEmployees(parent)
+	for index = #employees, 1, -1 do
+		if employees[index].model:IsDescendantOf(parent) then table.remove(employees, index) end
 	end
 end
 

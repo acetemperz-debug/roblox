@@ -198,6 +198,10 @@ function Interface.build(): any
 	operationButton.BackgroundColor3 = T.AccentDark
 	storeButton.BackgroundColor3 = T.Gold
 	storeButton.TextColor3 = Color3.fromRGB(32, 26, 10)
+	-- Actions live at computers. Only career/help remain on the permanent HUD.
+	operationButton.Visible = false
+	shopButton.Visible = false
+	storeButton.Visible = false
 
 	----------------------------------------------------------------------------
 	-- Home panel (difficulty + start call)
@@ -205,8 +209,9 @@ function Interface.build(): any
 	-- Bottom right, because the operation HUD owns the bottom left.
 	local home = UIKit.panel({
 		Name = "Home",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -16, 1, -24),
+		Visible = false,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
 		Size = UDim2.new(0, 720, 0, 210),
 		BackgroundTransparency = 0.05,
 		Parent = gui,
@@ -376,6 +381,23 @@ function Interface.build(): any
 		BackgroundColor3 = T.AccentDark,
 		Parent = ops,
 	})
+	layLowButton.Visible = false
+	opsOpenButton.Visible = false
+	ops.Size = UDim2.new(0, 300, 0, 154)
+
+	local terminalBar = UIKit.panel({
+		Name = "ComputerControls", Visible = false,
+		AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8),
+		Size = UDim2.new(0, 580, 0, 44), ZIndex = 30, Parent = gui,
+	})
+	local terminalTitle = UIKit.label({ Text = "COMPUTER", Size = UDim2.new(0, 200, 1, 0), TextSize = 15,
+		Position = UDim2.new(0, 12, 0, 0), TextColor3 = T.Accent, ZIndex = 31, Parent = terminalBar })
+	local terminalPrimary = UIKit.button({ Text = "Calls", Position = UDim2.new(0, 208, 0, 5),
+		Size = UDim2.new(0, 112, 0, 34), ZIndex = 31, Parent = terminalBar })
+	local terminalSecondary = UIKit.button({ Text = "Campaigns", Position = UDim2.new(0, 326, 0, 5),
+		Size = UDim2.new(0, 132, 0, 34), ZIndex = 31, Parent = terminalBar })
+	local terminalClose = UIKit.button({ Text = "Leave", Position = UDim2.new(1, -112, 0, 5),
+		Size = UDim2.new(0, 106, 0, 34), ZIndex = 31, Parent = terminalBar })
 
 	----------------------------------------------------------------------------
 	-- Call screen
@@ -767,6 +789,8 @@ function Interface.build(): any
 			"on real people. Do not try any of this outside the game.",
 			"",
 			"HOW A CALL WORKS",
+			"- Walk to CALLS + CAMPAIGNS and interact with its computer to begin.",
+			"- Stay at the workstation during calls. Walking away disconnects the line.",
 			"- Each call runs through 7 stages. Clear a stage by picking good lines.",
 			"- Trust goes up when your line suits that caller's personality.",
 			"- Suspicion goes up when it does not. At 100 suspicion they hang up.",
@@ -780,6 +804,9 @@ function Interface.build(): any
 			"- On Hard and above the meters are hidden, so judge them by what they say.",
 			"",
 			"PROGRESSION",
+			"- HR hires employees; Management expands the office and upgrades your desk.",
+			"- Security controls police risk and Lay Low; the Premium kiosk sells extras.",
+			"- Use the purple lift for global boards. Interact with a board for your rank.",
 			"- Successful calls pay Call Centre Credits. Spend them on desk upgrades.",
 			"- Lifetime earnings and successful calls raise your rank.",
 			"- Higher ranks unlock harder difficulties and extra dialogue options.",
@@ -808,6 +835,8 @@ function Interface.build(): any
 
 	return {
 		gui = gui,
+		terminal = { frame = terminalBar, title = terminalTitle, primary = terminalPrimary,
+			secondary = terminalSecondary, close = terminalClose },
 		topBar = {
 			frame = topBar,
 			credits = creditsLabel,

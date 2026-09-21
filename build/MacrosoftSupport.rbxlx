@@ -304,7 +304,7 @@ return Achievements
 
 local Config = {}
 
-Config.Version = "1.3.3"
+Config.Version = "1.4.0"
 Config.GameName = "Macrosoft Support: Call Centre Simulator"
 
 Config.Currency = {
@@ -404,7 +404,7 @@ Config.UI = {
 		Background = Color3.fromRGB(18, 20, 28),
 		Panel = Color3.fromRGB(28, 31, 42),
 		PanelLight = Color3.fromRGB(38, 42, 56),
-		Accent = Color3.fromRGB(86, 140, 255),
+		Accent = Color3.fromRGB(28, 189, 208),
 		AccentDark = Color3.fromRGB(52, 96, 190),
 		Trust = Color3.fromRGB(88, 214, 141),
 		Suspicion = Color3.fromRGB(231, 91, 91),
@@ -430,22 +430,22 @@ Config.UI = {
 --   * A Neon part renders at its own colour with full emission, so a near-white
 --     Neon screen blooms into a shapeless blob. Neon wants a MID colour.
 Config.Environment = {
-	Ambient = Color3.fromRGB(104, 108, 126),
+	Ambient = Color3.fromRGB(120, 107, 139),
 	OutdoorAmbient = Color3.fromRGB(94, 98, 116),
 	Brightness = 2,
-	ClockTime = 15,
+	ClockTime = 17.4,
 	FogEnd = 500,
 
 	-- Ceiling fixtures: all of them glow, a sparse grid actually casts light.
-	CeilingLightColour = Color3.fromRGB(198, 216, 240),
+	CeilingLightColour = Color3.fromRGB(255, 218, 167),
 	CeilingLightBrightness = 0.5,
 	CeilingLightRange = 26,
 
 	-- Monitors. Mid-blue, not white: this is what stops the blobbing.
 	ScreenColour = Color3.fromRGB(58, 112, 178),
 	-- Wall trim strips, dimmed so they read as trim and not as lasers.
-	StripColourA = Color3.fromRGB(52, 96, 178),
-	StripColourB = Color3.fromRGB(150, 64, 118),
+	StripColourA = Color3.fromRGB(25, 199, 220),
+	StripColourB = Color3.fromRGB(218, 57, 153),
 
 	Bloom = { Intensity = 0.22, Size = 10, Threshold = 2 },
 	Colour = { Saturation = 0.12, Contrast = 0.04, Brightness = 0.015 },
@@ -1641,6 +1641,123 @@ return Difficulty
 			</Item>
 			<Item class="ModuleScript" referent="RBX7">
 				<Properties>
+					<string name="Name">Net</string>
+					<ProtectedString name="Source"><![CDATA[--!nonstrict
+-- Net
+-- Creates (server) or waits for (client) every RemoteEvent / RemoteFunction the
+-- game uses. Nothing has to be created by hand in Studio -- require this module
+-- and the objects appear under ReplicatedStorage/MacrosoftRemotes.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local FOLDER_NAME = "MacrosoftRemotes"
+
+local EVENTS = {
+	-- Client -> Server
+	"StartCall", -- (difficultyKey: string)
+	"ChooseOption", -- (choiceIndex: number)
+	"HangUp", -- ()
+	"PurchaseUpgrade", -- (upgradeId: string)
+	"RequestData", -- ()
+	"SetDifficulty", -- (difficultyKey: string)
+	"PromptPurchase", -- (kind: "pass"|"product", itemId: string)
+	"UseItem", -- (productId: string)
+	"SetAlias", -- (alias: string)
+	"OperationAction", -- (action: string, a: any?, b: any?)
+	"CloseTerminal",
+
+	-- Server -> Client
+	"CallStarted", -- (callView)
+	"CallUpdated", -- (callView)
+	"CallEnded", -- (resultView)
+	"DataUpdated", -- (publicData)
+	"Notify", -- ({title, body, kind})
+	"AchievementUnlocked", -- (achievementView)
+	"RankChanged", -- ({from, to})
+	"OperationUpdated", -- (operationView)
+	"HeatWarning", -- ({title, body, at})
+	"RaidAlert", -- (outcome)
+	"OfflineEarnings", -- ({amount, seconds, capped})
+	"Broadcast", -- ({text, kind}) to everyone, for the live ticker
+	"TerminalOpened", -- server-authorised physical terminal session
+	"TerminalClosed",
+	"LeaderboardRank", -- personal row on the physical board
+}
+
+local FUNCTIONS = {
+	"GetData", -- () -> publicData
+	"GetCatalog", -- () -> {upgrades, ranks, achievements, difficulties}
+	"GetStore", -- () -> {passes, products}
+	"GetOperation", -- () -> operationView
+}
+
+local Net = {}
+
+local folder: Folder
+
+local function ensureFolder(): Folder
+	if RunService:IsServer() then
+		local existing = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+		if existing then
+			return existing
+		end
+		local f = Instance.new("Folder")
+		f.Name = FOLDER_NAME
+		f.Parent = ReplicatedStorage
+		return f
+	end
+	return ReplicatedStorage:WaitForChild(FOLDER_NAME, 30)
+end
+
+local function ensureChild(parent: Instance, name: string, className: string): Instance
+	if RunService:IsServer() then
+		local existing = parent:FindFirstChild(name)
+		if existing then
+			return existing
+		end
+		local inst = Instance.new(className)
+		inst.Name = name
+		inst.Parent = parent
+		return inst
+	end
+	return parent:WaitForChild(name, 30)
+end
+
+-- Call once on the server (Bootstrap does this) before anything else uses Net.
+function Net.init()
+	folder = ensureFolder()
+	for _, name in ipairs(EVENTS) do
+		ensureChild(folder, name, "RemoteEvent")
+	end
+	for _, name in ipairs(FUNCTIONS) do
+		ensureChild(folder, name, "RemoteFunction")
+	end
+end
+
+function Net.event(name: string): RemoteEvent
+	if not folder then
+		folder = ensureFolder()
+	end
+	return ensureChild(folder, name, "RemoteEvent") :: RemoteEvent
+end
+
+function Net.func(name: string): RemoteFunction
+	if not folder then
+		folder = ensureFolder()
+	end
+	return ensureChild(folder, name, "RemoteFunction") :: RemoteFunction
+end
+
+Net.EventNames = EVENTS
+Net.FunctionNames = FUNCTIONS
+
+return Net
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX8">
+				<Properties>
 					<string name="Name">NPCNames</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
 -- NPCNames
@@ -1769,119 +1886,6 @@ NPCNames.Jobs = {
 }
 
 return NPCNames
-]]></ProtectedString>
-				</Properties>
-			</Item>
-			<Item class="ModuleScript" referent="RBX8">
-				<Properties>
-					<string name="Name">Net</string>
-					<ProtectedString name="Source"><![CDATA[--!nonstrict
--- Net
--- Creates (server) or waits for (client) every RemoteEvent / RemoteFunction the
--- game uses. Nothing has to be created by hand in Studio -- require this module
--- and the objects appear under ReplicatedStorage/MacrosoftRemotes.
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-
-local FOLDER_NAME = "MacrosoftRemotes"
-
-local EVENTS = {
-	-- Client -> Server
-	"StartCall", -- (difficultyKey: string)
-	"ChooseOption", -- (choiceIndex: number)
-	"HangUp", -- ()
-	"PurchaseUpgrade", -- (upgradeId: string)
-	"RequestData", -- ()
-	"SetDifficulty", -- (difficultyKey: string)
-	"PromptPurchase", -- (kind: "pass"|"product", itemId: string)
-	"UseItem", -- (productId: string)
-	"SetAlias", -- (alias: string)
-	"OperationAction", -- (action: string, a: any?, b: any?)
-
-	-- Server -> Client
-	"CallStarted", -- (callView)
-	"CallUpdated", -- (callView)
-	"CallEnded", -- (resultView)
-	"DataUpdated", -- (publicData)
-	"Notify", -- ({title, body, kind})
-	"AchievementUnlocked", -- (achievementView)
-	"RankChanged", -- ({from, to})
-	"OperationUpdated", -- (operationView)
-	"HeatWarning", -- ({title, body, at})
-	"RaidAlert", -- (outcome)
-	"OfflineEarnings", -- ({amount, seconds, capped})
-	"Broadcast", -- ({text, kind}) to everyone, for the live ticker
-}
-
-local FUNCTIONS = {
-	"GetData", -- () -> publicData
-	"GetCatalog", -- () -> {upgrades, ranks, achievements, difficulties}
-	"GetStore", -- () -> {passes, products}
-	"GetOperation", -- () -> operationView
-}
-
-local Net = {}
-
-local folder: Folder
-
-local function ensureFolder(): Folder
-	if RunService:IsServer() then
-		local existing = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
-		if existing then
-			return existing
-		end
-		local f = Instance.new("Folder")
-		f.Name = FOLDER_NAME
-		f.Parent = ReplicatedStorage
-		return f
-	end
-	return ReplicatedStorage:WaitForChild(FOLDER_NAME, 30)
-end
-
-local function ensureChild(parent: Instance, name: string, className: string): Instance
-	if RunService:IsServer() then
-		local existing = parent:FindFirstChild(name)
-		if existing then
-			return existing
-		end
-		local inst = Instance.new(className)
-		inst.Name = name
-		inst.Parent = parent
-		return inst
-	end
-	return parent:WaitForChild(name, 30)
-end
-
--- Call once on the server (Bootstrap does this) before anything else uses Net.
-function Net.init()
-	folder = ensureFolder()
-	for _, name in ipairs(EVENTS) do
-		ensureChild(folder, name, "RemoteEvent")
-	end
-	for _, name in ipairs(FUNCTIONS) do
-		ensureChild(folder, name, "RemoteFunction")
-	end
-end
-
-function Net.event(name: string): RemoteEvent
-	if not folder then
-		folder = ensureFolder()
-	end
-	return ensureChild(folder, name, "RemoteEvent") :: RemoteEvent
-end
-
-function Net.func(name: string): RemoteFunction
-	if not folder then
-		folder = ensureFolder()
-	end
-	return ensureChild(folder, name, "RemoteFunction") :: RemoteFunction
-end
-
-Net.EventNames = EVENTS
-Net.FunctionNames = FUNCTIONS
-
-return Net
 ]]></ProtectedString>
 				</Properties>
 			</Item>
@@ -5248,6 +5252,7 @@ return DialogueManager
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
 local Config = require(Shared.Config)
@@ -5265,7 +5270,7 @@ local THEME = {
 	Carpet = Color3.fromRGB(42, 47, 64),
 	-- Mid-tone walls. The old near-white ones plus 25 point lights washed the
 	-- whole room out to a flat white.
-	Wall = Color3.fromRGB(78, 84, 104),
+	Wall = Color3.fromRGB(66, 47, 107),
 	WallTrim = Color3.fromRGB(52, 57, 74),
 	Desk = Color3.fromRGB(124, 96, 70),
 	DeskLegs = Color3.fromRGB(70, 74, 86),
@@ -5273,7 +5278,7 @@ local THEME = {
 	Screen = Config.Environment.ScreenColour,
 	Chair = Color3.fromRGB(38, 42, 54),
 	Glass = Color3.fromRGB(180, 220, 235),
-	Accent = Color3.fromRGB(86, 140, 255),
+	Accent = Color3.fromRGB(38, 220, 231),
 }
 
 local function part(props): BasePart
@@ -5398,7 +5403,7 @@ local function buildEmployee(parent: Instance, cframe: CFrame, name: string)
 	local model = Instance.new("Model")
 	model.Name = "Employee_" .. name
 
-	local shirtColour = Color3.fromHSV(Util.newRandom():NextNumber(), 0.35, 0.8)
+	local shirtColour = Color3.fromHSV(Util.newRandom():NextNumber(), 0.7, 0.95)
 
 	local torso = part({
 		Size = Vector3.new(2, 2, 1),
@@ -5674,6 +5679,9 @@ local function buildShopKiosk(parent: Instance)
 		Name = "Counter",
 	})
 	label(counter, "DESK UPGRADES", Enum.NormalId.Front, THEME.Accent)
+	local screen = part({ Size = Vector3.new(4, 2.5, 0.3), CFrame = CFrame.new(-25, 5.4, -45.5),
+		Color = THEME.Screen, Material = Enum.Material.Neon, Parent = kiosk, Name = "ManagementComputer" })
+	label(screen, "OFFICE\nMANAGEMENT", Enum.NormalId.Front, Color3.fromRGB(255, 220, 110))
 
 	local board = part({
 		Size = Vector3.new(14, 8, 0.4),
@@ -5725,7 +5733,7 @@ local function buildLeaderboards(parent: Instance)
 		local gui = Instance.new("SurfaceGui")
 		gui.Name = "Board"
 		gui.Face = spec.face
-		gui.CanvasSize = Vector2.new(400, 300)
+		gui.CanvasSize = Vector2.new(500, 380)
 		gui.LightInfluence = 0
 		gui.Parent = board
 
@@ -5741,7 +5749,7 @@ local function buildLeaderboards(parent: Instance)
 		local list = Instance.new("TextLabel")
 		list.Name = "Entries"
 		list.Position = UDim2.new(0, 10, 0, 45)
-		list.Size = UDim2.new(1, -20, 1, -55)
+		list.Size = UDim2.new(1, -20, 1, -100)
 		list.BackgroundTransparency = 1
 		list.Font = Enum.Font.Gotham
 		list.TextSize = 18
@@ -5750,6 +5758,18 @@ local function buildLeaderboards(parent: Instance)
 		list.TextYAlignment = Enum.TextYAlignment.Top
 		list.Text = "Loading..."
 		list.Parent = gui
+
+		local own = Instance.new("TextLabel")
+		own.Name = "YourRank"
+		own.Position = UDim2.new(0, 10, 1, -45)
+		own.Size = UDim2.new(1, -20, 0, 40)
+		own.BackgroundColor3 = Color3.fromRGB(51, 40, 83)
+		own.TextColor3 = Color3.fromRGB(255, 206, 86)
+		own.Font = Enum.Font.GothamBold
+		own.TextSize = 18
+		own.TextWrapped = true
+		own.Text = "Use this board to see YOUR global rank"
+		own.Parent = gui
 	end
 
 	boards.Parent = parent
@@ -5874,8 +5894,18 @@ local function setEmployeeState(employee, state: string)
 	end
 end
 
+local animationElapsed = 0
 local function animateEmployees(dt: number)
+	animationElapsed += dt
+	if animationElapsed < 0.15 then return end
+	dt = animationElapsed
+	animationElapsed = 0
 	local now = os.clock()
+	local viewers = {}
+	for _, player in ipairs(Players:GetPlayers()) do
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if root then table.insert(viewers, root.Position) end
+	end
 
 	if raidLight and raidLight.Parent then
 		raidLight.Color = (math.floor(now * 3) % 2 == 0)
@@ -5884,6 +5914,15 @@ local function animateEmployees(dt: number)
 	end
 
 	for _, employee in ipairs(employees) do
+		if not employee.model.Parent or employee.model.Parent:GetAttribute("Paused") then
+			employee.bubble.Visible = false
+			continue
+		end
+		local visible = false
+		for _, position in ipairs(viewers) do
+			if (position - employee.baseCFrame.Position).Magnitude < 120 then visible = true; break end
+		end
+		if not visible then continue end
 		employee.stateTimer -= dt
 		if employee.stateTimer <= 0 then
 			setEmployeeState(employee, Util.pick(EMPLOYEE_STATES))
@@ -5997,12 +6036,13 @@ function EnvironmentBuilder.build()
 					Parent = desk,
 					Name = "Nameplate",
 				})
-				label(nameplate, "YOUR DESK", Enum.NormalId.Front)
+				label(nameplate, "SHOWROOM", Enum.NormalId.Front)
 
 				local prompt = Instance.new("ProximityPrompt")
 				prompt.Name = "WorkstationPrompt"
-				prompt.ActionText = "Start Call"
-				prompt.ObjectText = "Your Workstation"
+				prompt.ActionText = "Visit Your Office Lift"
+				prompt.ObjectText = "Demo Workstation"
+				prompt.Enabled = false
 				prompt.HoldDuration = 0
 				prompt.MaxActivationDistance = 12
 				prompt.RequiresLineOfSight = false
@@ -6106,6 +6146,19 @@ function EnvironmentBuilder.setLeaderboard(boardName: string, text: string)
 	local entries = gui and gui:FindFirstChild("Entries")
 	if entries then
 		entries.Text = text
+	end
+end
+
+-- Shared construction primitives let personal offices use the established art
+-- and animation system instead of introducing a second environment architecture.
+EnvironmentBuilder.part = part
+EnvironmentBuilder.label = label
+EnvironmentBuilder.buildDesk = buildDesk
+EnvironmentBuilder.buildEmployee = buildEmployee
+
+function EnvironmentBuilder.removeEmployees(parent)
+	for index = #employees, 1, -1 do
+		if employees[index].model:IsDescendantOf(parent) then table.remove(employees, index) end
 	end
 end
 
@@ -6304,9 +6357,12 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShare
 local Config = require(Shared.Config)
 local Util = require(Shared.Util)
 local Difficulty = require(Shared.Difficulty)
+local Net = require(Shared.Net)
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager)
 local EnvironmentBuilder = require(script.Parent.EnvironmentBuilder)
+local TerminalAccess = require(script.Parent.TerminalAccess)
+local LeaderboardRank = require(script.Parent.LeaderboardRank)
 
 local LeaderboardManager = {}
 
@@ -6357,6 +6413,8 @@ end
 LeaderboardManager.Boards = BOARDS
 
 local stores = {}
+local rankBusy = {}
+local rankCache = {}
 
 local function getStore(key: string)
 	if stores[key] ~= nil then
@@ -6432,27 +6490,98 @@ function LeaderboardManager.refresh()
 end
 
 function LeaderboardManager.start()
+	local boards = EnvironmentBuilder.getRoot():FindFirstChild("Leaderboards")
+	for _, spec in ipairs(BOARDS) do
+		local board = boards and boards:FindFirstChild(spec.name)
+		if board then
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.ActionText = "Show My Global Rank"
+			prompt.ObjectText = spec.name
+			prompt.MaxActivationDistance = 16
+			prompt.RequiresLineOfSight = false
+			prompt.Parent = board
+			prompt.Triggered:Connect(function(player)
+				local terminal = { anchor = board, distance = 18 }
+				if rankBusy[player] or not TerminalAccess.near(player, terminal)
+					or not TerminalAccess.throttle(player, "rank", 3) then return end
+				local data = PlayerDataManager.get(player)
+				if not data then return end
+				local function send(text)
+					if player.Parent then Net.event("LeaderboardRank"):FireClient(player, { board = spec.name, text = text }) end
+				end
+				local score = math.floor(spec.value(data.stats))
+				local cache = rankCache[player] and rankCache[player][spec.name]
+				if cache and cache.score == score and os.clock() - cache.time < 90 then send(cache.text); return end
+				local store = getStore(spec.key)
+				if not store or data.loadFailed or data.saveDisabled then send("Global rank needs DataStore access"); return end
+				rankBusy[player] = true
+				send("Finding YOUR global rank...")
+				task.spawn(function()
+					local deadline = os.clock() + 45
+					local rank, text = LeaderboardRank.calculate(store, score, function()
+						return player.Parent ~= nil and os.clock() < deadline and TerminalAccess.near(player, terminal)
+					end)
+					text ..= "  |  " .. Util.formatNumber(score) .. spec.suffix
+					if player.Parent and rank then
+						rankCache[player] = rankCache[player] or {}
+						rankCache[player][spec.name] = { score = score, time = os.clock(), text = text }
+					end
+					send(text)
+					rankBusy[player] = nil
+				end)
+			end)
+		end
+	end
+
 	task.spawn(function()
 		while true do
+			for _, player in ipairs(Players:GetPlayers()) do LeaderboardManager.publish(player) end
 			LeaderboardManager.refresh()
 			task.wait(90)
 		end
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		rankBusy[player] = nil
+		rankCache[player] = nil
 		LeaderboardManager.publish(player)
 	end)
 
-	-- A first refresh straight away so the boards are not blank while the first
-	-- 90-second cycle runs.
-	task.spawn(LeaderboardManager.refresh)
+-- The loop above performs the initial refresh as well.
 end
 
 return LeaderboardManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="Script" referent="RBX25">
+			<Item class="ModuleScript" referent="RBX25">
+				<Properties>
+					<string name="Name">LeaderboardRank</string>
+					<ProtectedString name="Source"><![CDATA[--!nonstrict
+-- Competition rank: ties share a rank. No arbitrary Top-100/Top-1000 cutoff.
+local LeaderboardRank = {}
+
+function LeaderboardRank.calculate(store, score, keepGoing)
+	if score <= 0 then return nil, "Unranked - earn your first score" end
+	local ok, result = pcall(function()
+		local pages = store:GetSortedAsync(false, 100, score + 1)
+		local ahead = 0
+		while true do
+			if keepGoing and not keepGoing() then error("Rank lookup cancelled") end
+			ahead += #pages:GetCurrentPage()
+			if pages.IsFinished then return ahead + 1 end
+			pages:AdvanceToNextPageAsync()
+		end
+	end)
+	if not ok then return nil, "Rank unavailable - try again at this board" end
+	return result, "YOUR GLOBAL RANK  #" .. tostring(result)
+end
+
+return LeaderboardRank
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX26">
 				<Properties>
 					<string name="Name">MacrosoftServer</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -6490,6 +6619,8 @@ local MonetisationManager = require(Modules.MonetisationManager)
 local CosmeticsManager = require(Modules.CosmeticsManager)
 local OperationManager = require(Modules.OperationManager)
 local HeatManager = require(Modules.HeatManager)
+local TerminalAccess = require(Modules.TerminalAccess)
+local OfficeManager = require(Modules.OfficeManager)
 
 --------------------------------------------------------------------------------
 -- World
@@ -6497,48 +6628,48 @@ local HeatManager = require(Modules.HeatManager)
 
 local _, shopPrompt, executivePrompt = EnvironmentBuilder.build()
 
-if shopPrompt then
-	shopPrompt.Triggered:Connect(function(player)
-		Net.event("Notify"):FireClient(player, {
-			title = "Upgrade Shop",
-			body = "Shop opened.",
-			kind = "info",
-			openShop = true,
-		})
-	end)
-end
-
-local callCentre = workspace:WaitForChild("CallCentre")
-local workstation = callCentre:WaitForChild("Desks"):WaitForChild("PlayerWorkstation")
-local workstationPrompt = workstation:FindFirstChildWhichIsA("ProximityPrompt", true)
-
-local function startFromDesk(player: Player)
-	local data = PlayerDataManager.get(player)
-	local difficulty = data and data.settings.difficulty or "Normal"
-	local ok, reason = CallManager.start(player, difficulty)
-	if not ok then
-		Net.event("Notify"):FireClient(player, { title = "Cannot Start Call", body = reason, kind = "warn" })
+local function openTerminal(player, terminal)
+	if CallManager.getState(player) then return end
+	if TerminalAccess.open(player, terminal) then
+		Net.event("TerminalOpened"):FireClient(player, { kind = terminal.kind, anchor = terminal.anchor })
 	end
 end
 
-if workstationPrompt then
-	workstationPrompt.Triggered:Connect(startFromDesk)
+OfficeManager.start(openTerminal)
+
+-- Retain the showroom upgrade kiosk and the paid Corner Office workstation.
+for _, entry in ipairs({
+	{ prompt = shopPrompt, kind = "management" },
+	{ prompt = executivePrompt, kind = "workstation", canUse = function(player)
+		return MonetisationManager.owns(player, "corner_office")
+	end },
+}) do
+	if entry.prompt then
+		local terminal = { kind = entry.kind, anchor = entry.prompt.Parent, model = entry.prompt.Parent.Parent, canUse = entry.canUse }
+		entry.prompt.ActionText = "Use Computer"
+		entry.prompt.Triggered:Connect(function(player)
+			if TerminalAccess.throttle(player, "prompt", 0.4) then openTerminal(player, terminal) end
+		end)
+	end
 end
 
--- The Corner Office desk works exactly the same, for players who own the pass.
-if executivePrompt then
-	executivePrompt.Triggered:Connect(function(player)
-		if not MonetisationManager.owns(player, "corner_office") then
-			Net.event("Notify"):FireClient(player, {
-				title = "Corner Office",
-				body = "This desk belongs to Corner Office owners. Check the Robux store.",
-				kind = "warn",
-			})
-			return
-		end
-		startFromDesk(player)
-	end)
+local function closeTerminal(player)
+	TerminalAccess.close(player)
+	if CallManager.getState(player) then CallManager.hangUp(player) end
+	Net.event("TerminalClosed"):FireClient(player)
 end
+
+Net.event("CloseTerminal").OnServerEvent:Connect(closeTerminal)
+Players.PlayerRemoving:Connect(function(player) TerminalAccess.remove(player) end)
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		for _, player in ipairs(Players:GetPlayers()) do
+			if TerminalAccess.current(player) and not TerminalAccess.valid(player) then closeTerminal(player) end
+		end
+	end
+end)
 
 -- The live ticker. Everyone sees everyone else's big moments, which is most of
 -- what makes a server feel alive.
@@ -6620,6 +6751,7 @@ end)
 
 OperationManager.Changed.Event:Connect(function(player, view)
 	Net.event("OperationUpdated"):FireClient(player, view)
+	OfficeManager.update(player, view)
 end)
 
 OperationManager.OfflineEarnings.Event:Connect(function(player, amount, seconds)
@@ -6637,6 +6769,7 @@ end)
 OperationManager.Raided.Event:Connect(function(player, outcome)
 	Net.event("RaidAlert"):FireClient(player, outcome)
 	Net.event("OperationUpdated"):FireClient(player, OperationManager.view(player))
+	OfficeManager.update(player, OperationManager.view(player))
 	-- Everyone gets to watch the car turn up.
 	EnvironmentBuilder.showRaid(player.DisplayName, outcome.escaped and 12 or Operation.Raid.ShutdownSeconds)
 	broadcast(
@@ -6705,6 +6838,7 @@ end)
 --------------------------------------------------------------------------------
 
 Net.event("StartCall").OnServerEvent:Connect(function(player, difficultyKey)
+	if not TerminalAccess.authorize(player, "StartCall") then return end
 	if typeof(difficultyKey) ~= "string" then
 		return
 	end
@@ -6719,7 +6853,7 @@ Net.event("StartCall").OnServerEvent:Connect(function(player, difficultyKey)
 end)
 
 Net.event("ChooseOption").OnServerEvent:Connect(function(player, index)
-	if typeof(index) ~= "number" then
+	if not TerminalAccess.authorize(player, "ChooseOption") or not TerminalAccess.finiteInteger(index, 1, 4) then
 		return
 	end
 	CallManager.choose(player, math.floor(index))
@@ -6730,6 +6864,7 @@ Net.event("HangUp").OnServerEvent:Connect(function(player)
 end)
 
 Net.event("PurchaseUpgrade").OnServerEvent:Connect(function(player, upgradeId)
+	if not TerminalAccess.authorize(player, "PurchaseUpgrade") then return end
 	if typeof(upgradeId) ~= "string" then
 		return
 	end
@@ -6745,6 +6880,7 @@ Net.event("PurchaseUpgrade").OnServerEvent:Connect(function(player, upgradeId)
 end)
 
 Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
+	if not TerminalAccess.authorize(player, "SetDifficulty") then return end
 	if typeof(key) ~= "string" or not Difficulty.Levels[key] then
 		return
 	end
@@ -6762,6 +6898,7 @@ Net.event("SetDifficulty").OnServerEvent:Connect(function(player, key)
 end)
 
 Net.event("PromptPurchase").OnServerEvent:Connect(function(player, kind, itemId)
+	if not TerminalAccess.authorize(player, "PromptPurchase") then return end
 	if typeof(kind) ~= "string" or typeof(itemId) ~= "string" then
 		return
 	end
@@ -6779,6 +6916,7 @@ Net.event("PromptPurchase").OnServerEvent:Connect(function(player, kind, itemId)
 end)
 
 Net.event("UseItem").OnServerEvent:Connect(function(player, productId)
+	if not TerminalAccess.authorize(player, "UseItem") then return end
 	if typeof(productId) ~= "string" then
 		return
 	end
@@ -6791,6 +6929,7 @@ Net.event("UseItem").OnServerEvent:Connect(function(player, productId)
 end)
 
 Net.event("SetAlias").OnServerEvent:Connect(function(player, alias)
+	if not TerminalAccess.throttle(player, "alias", 2) then return end
 	if typeof(alias) ~= "string" then
 		return
 	end
@@ -6871,10 +7010,11 @@ Net.event("OperationAction").OnServerEvent:Connect(function(player, action, a, b
 	if not handler then
 		return
 	end
+	if not TerminalAccess.authorize(player, action) then return end
 	if a ~= nil and typeof(a) ~= "string" then
 		return
 	end
-	if b ~= nil and typeof(b) ~= "number" then
+	if b ~= nil and not TerminalAccess.finiteInteger(b, 1, 25) then
 		return
 	end
 
@@ -6892,6 +7032,7 @@ Net.event("OperationAction").OnServerEvent:Connect(function(player, action, a, b
 end)
 
 Net.event("RequestData").OnServerEvent:Connect(function(player)
+	if not TerminalAccess.throttle(player, "data", 1) then return end
 	PlayerDataManager.notify(player)
 end)
 
@@ -6972,7 +7113,7 @@ print(string.format(
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX26">
+			<Item class="ModuleScript" referent="RBX27">
 				<Properties>
 					<string name="Name">MonetisationManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -7241,7 +7382,7 @@ return MonetisationManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX27">
+			<Item class="ModuleScript" referent="RBX28">
 				<Properties>
 					<string name="Name">NPCGenerator</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -7371,7 +7512,7 @@ return NPCGenerator
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX28">
+			<Item class="ModuleScript" referent="RBX29">
 				<Properties>
 					<string name="Name">NPCPersonalitySystem</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -7630,7 +7771,240 @@ return NPCPersonalitySystem
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX29">
+			<Item class="ModuleScript" referent="RBX30">
+				<Properties>
+					<string name="Name">OfficeManager</string>
+					<ProtectedString name="Source"><![CDATA[--!nonstrict
+-- Physical presentation of the existing saved operation; never computes rewards.
+local Players = game:GetService("Players")
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("MacrosoftShared")
+local Operation = require(Shared.Operation)
+local Util = require(Shared.Util)
+local Environment = require(script.Parent.EnvironmentBuilder)
+local Data = require(script.Parent.PlayerDataManager)
+local Access = require(script.Parent.TerminalAccess)
+local OfficeManager = {}
+local offices, slots = {}, {}
+local onTerminal
+local cyan = Color3.fromRGB(30, 225, 235)
+local gold = Color3.fromRGB(255, 191, 60)
+local pink = Color3.fromRGB(244, 75, 175)
+local purple = Color3.fromRGB(133, 92, 235)
+
+local function block(parent, name, size, cf, colour, material)
+	return Environment.part({ Name = name, Size = size, CFrame = cf, Color = colour,
+		Material = material or Enum.Material.SmoothPlastic, Parent = parent })
+end
+
+local function sign(parent, name, cf, text, colour, width)
+	local board = block(parent, name, Vector3.new(width or 10, 3, 0.3), cf, Color3.fromRGB(22, 28, 55))
+	return Environment.label(board, text, Enum.NormalId.Back, colour)
+end
+
+local function terminal(office, kind, title, x, z, colour, canUse)
+	local cf = office.origin * CFrame.new(x, 0, z)
+	local desk = Environment.buildDesk(office.model, cf, title)
+	desk:SetAttribute("OwnerUserId", office.player.UserId)
+	desk:SetAttribute("TerminalKind", kind)
+	desk.Screen.Color = colour
+	sign(desk, "TerminalSign", cf * CFrame.new(0, 7, -1), title, colour, 8)
+	local anchor = desk.Screen
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Use Computer"
+	prompt.ObjectText = title
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false -- server raycast is authoritative
+	prompt.HoldDuration = 0.2
+	prompt.Parent = anchor
+	local spec = { kind = kind, anchor = anchor, model = desk, owner = office.player.UserId, canUse = canUse }
+	prompt.Triggered:Connect(function(player)
+		if Access.throttle(player, "prompt", 0.4) and Access.near(player, spec) then onTerminal(player, spec) end
+	end)
+	return desk
+end
+
+local function create(player)
+	local slot = 1
+	while slots[slot] do slot += 1 end
+	slots[slot] = player
+	local model = Instance.new("Model")
+	model.Name = "Office_" .. player.UserId
+	model:SetAttribute("OwnerUserId", player.UserId)
+	model.Parent = Environment.getRoot()
+	local office = { player = player, model = model, slot = slot,
+		origin = CFrame.new(240 + ((slot - 1) % 4) * 220, 0, math.floor((slot - 1) / 4) * 240) }
+	offices[player] = office
+	-- Terminals are stable while the floor expands, so an upgrade cannot strand a session.
+	office.desk = terminal(office, "workstation", "CALLS + CAMPAIGNS", -12, 0, cyan)
+	terminal(office, "hr", "HR / RECRUITMENT", 0, 0, pink)
+	terminal(office, "management", "OFFICE MANAGEMENT", 12, 0, gold)
+	terminal(office, "security", "SECURITY / POLICE", -12, 13, Color3.fromRGB(255, 95, 95))
+	terminal(office, "premium", "PREMIUM KIOSK", 12, 13, purple)
+	office.status = sign(model, "SuspicionBoard", office.origin * CFrame.new(0, 11, -3), "POLICE HEAT: 0", cyan, 23)
+	office.upgrades = sign(model, "UpgradeBoard", office.origin * CFrame.new(0, 15, -3), "BACK ROOM", gold, 25)
+	local exit = block(model, "LobbyLift", Vector3.new(6, 0.2, 5), office.origin * CFrame.new(0, 0.1, 20), purple, Enum.Material.Neon)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Visit Leaderboards"
+	prompt.ObjectText = "Lobby Lift"
+	prompt.MaxActivationDistance = 8
+	prompt.Parent = exit
+	prompt.Triggered:Connect(function(visitor)
+		if Access.near(visitor, { anchor = exit, distance = 8 }) and Access.throttle(visitor, "travel", 2) then
+			visitor.Character:PivotTo(CFrame.new(0, 4, 44))
+		end
+	end)
+	return office
+end
+
+function OfficeManager.teleport(player)
+	local office = offices[player]
+	if office and player.Character then player.Character:PivotTo(office.origin * CFrame.new(0, 4, 9)) end
+end
+
+function OfficeManager.update(player, view)
+	if not view then return end
+	local firstVisit = offices[player] == nil
+	local office = offices[player] or create(player)
+	local profile = Data.get(player)
+	if not profile then return end
+	local facility = Operation.FacilityById[view.facility]
+	local tier = facility.index
+	local upgrades = 0
+	for _, owned in pairs(profile.upgrades or {}) do if owned then upgrades += 1 end end
+	office.upgrades.Text = string.format("%s | %s\n%d / %d DESKS  |  %d UPGRADES", player.DisplayName, facility.name, view.summary.headcount, facility.desks, upgrades)
+	local paused = view.shutdownRemaining > 0 or view.layLowRemaining > 0
+	office.status.Text = string.format("POLICE HEAT  %d / 100\n%s  |  SECURITY %d", math.floor(view.heat),
+		paused and "FLOOR PAUSED" or ("+" .. Util.formatNumber(view.summary.netIncome) .. " / SEC"), view.summary.securityRating)
+	office.status.TextColor3 = view.heat >= 70 and Color3.fromRGB(255, 85, 95) or cyan
+	local signature = view.facility .. ":" .. upgrades .. ":" .. view.summary.securityRating
+	if signature ~= office.signature then
+		office.signature = signature
+		if office.shell then office.shell:Destroy() end
+		local shell = Instance.new("Model")
+		shell.Name = "Premises"
+		shell.Parent = office.model
+		office.shell = shell
+		local columns = math.min(9, math.max(3, math.ceil(math.sqrt(facility.desks))))
+		local rows = math.ceil(facility.desks / columns)
+		local width = math.max(44, columns * 11 + 8)
+		local depth = 40 + rows * 10
+		local centerZ = (depth - 12) / 2
+		local floorColour = tier <= 2 and Color3.fromRGB(112, 74, 107) or Color3.fromRGB(30, 61, 85)
+		block(shell, "Floor", Vector3.new(width, 1, depth), office.origin * CFrame.new(0, -0.5, centerZ), floorColour,
+			tier <= 2 and Enum.Material.WoodPlanks or Enum.Material.Marble)
+		block(shell, "Ceiling", Vector3.new(width, 0.6, depth), office.origin * CFrame.new(0, 19, centerZ), Color3.fromRGB(55, 46, 80))
+		block(shell, "FrontWall", Vector3.new(width, 19, 1), office.origin * CFrame.new(0, 9.5, -6), Color3.fromRGB(77, 47, 105))
+		block(shell, "BackWall", Vector3.new(width, 19, 1), office.origin * CFrame.new(0, 9.5, depth - 6), Color3.fromRGB(43, 88, 110))
+		for _, side in ipairs({ -1, 1 }) do
+			local glass = block(shell, "CityWindows", Vector3.new(0.5, 19, depth), office.origin * CFrame.new(side * width / 2, 9.5, centerZ), cyan, Enum.Material.Glass)
+			glass.Transparency = tier >= 3 and 0.65 or 0.3
+			block(shell, "NeonRail", Vector3.new(0.4, 0.4, depth), office.origin * CFrame.new(side * (width / 2 - 0.4), 1, centerZ), side == 1 and pink or cyan, Enum.Material.Neon)
+			for z = 0, depth - 10, 16 do
+				block(shell, "WindowFrame", Vector3.new(0.8, 19, 0.5), office.origin * CFrame.new(side * width / 2, 9.5, z), gold)
+				local height = 22 + ((z * 7 + tier * 13) % 40)
+				local tower = block(shell, "Skyline", Vector3.new(12, height, 12), office.origin * CFrame.new(side * (width / 2 + 25), height / 2 - 10, z), Color3.fromRGB(34, 44, 78))
+				for y = 0, height - 5, 8 do
+					block(shell, "CityLights", Vector3.new(12.2, 1.5, 12.2), tower.CFrame * CFrame.new(0, y - height / 2 + 3, 0), gold, Enum.Material.Neon)
+				end
+			end
+		end
+		for z = 10, depth - 10, 24 do
+			local lamp = block(shell, "WarmLight", Vector3.new(width - 8, 0.2, 1), office.origin * CFrame.new(0, 18.5, z), gold, Enum.Material.Neon)
+			local light = Instance.new("PointLight")
+			light.Color = Color3.fromRGB(255, 210, 155)
+			light.Brightness = 0.7
+			light.Range = 32
+			light.Parent = lamp
+		end
+		for index = 1, facility.desks do
+			local x = ((index - 1) % columns - (columns - 1) / 2) * 11
+			local z = 32 + math.floor((index - 1) / columns) * 10
+			local desk = Environment.buildDesk(shell, office.origin * CFrame.new(x, 0, z), "StaffDesk_" .. index)
+			desk.Screen.Color = index % 2 == 0 and cyan or purple
+		end
+		if tier >= 4 then
+			for _, x in ipairs({ -width / 2 + 4, width / 2 - 4 }) do
+				block(shell, "Planter", Vector3.new(3, 2, 3), office.origin * CFrame.new(x, 1, 18), gold)
+				block(shell, "Topiary", Vector3.new(3, 5, 3), office.origin * CFrame.new(x, 4, 18), Color3.fromRGB(57, 198, 124))
+			end
+		end
+		for index = 1, math.min(8, view.summary.securityRating) do
+			block(shell, "SecurityCamera", Vector3.new(0.8, 0.6, 1.5), office.origin * CFrame.new(-width / 2 + 2, 14, index * 8), cyan)
+		end
+		office.desk.PrimaryPart.Material = upgrades >= 4 and Enum.Material.Metal or Enum.Material.Wood
+		office.desk.PrimaryPart.Color = upgrades >= 4 and Color3.fromRGB(35, 39, 70) or Color3.fromRGB(150, 98, 64)
+		office.desk.Screen.Size = Vector3.new(2.3 + math.min(upgrades, 10) * 0.12, 1.4, 0.1)
+		office.columns = columns
+	end
+	-- Rebuild workers only when the roster changes, not every income tick.
+	local roster = { view.facility }
+	for _, employee in ipairs(view.staff) do table.insert(roster, employee.id .. ":" .. employee.held) end
+	local rosterKey = table.concat(roster, "|")
+	if rosterKey ~= office.rosterKey then
+		office.rosterKey = rosterKey
+		if office.staff then Environment.removeEmployees(office.staff); office.staff:Destroy() end
+		local staff = Instance.new("Model")
+		staff.Name = "HiredEmployees"
+		staff.Parent = office.model
+		office.staff = staff
+		local index = 0
+		for _, employee in ipairs(view.staff) do
+			for _ = 1, employee.held do
+				index += 1
+				local x = ((index - 1) % office.columns - (office.columns - 1) / 2) * 11
+				local z = 35 + math.floor((index - 1) / office.columns) * 10
+				local npc = Environment.buildEmployee(staff, office.origin * CFrame.new(x, 0, z), employee.name)
+				npc:SetAttribute("EmployeeId", employee.id)
+				npc:SetAttribute("OwnerUserId", player.UserId)
+				npc.Torso.Color = Color3.fromHSV((employee.tier - 1) / 7, 0.7, 0.95)
+				for _, p in ipairs(npc:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
+			end
+		end
+	end
+	office.staff:SetAttribute("Paused", paused)
+	if firstVisit then OfficeManager.teleport(player) end
+end
+
+function OfficeManager.start(callback)
+	onTerminal = callback
+	local lobby = Environment.getRoot()
+	local lift = block(lobby, "OfficeLift", Vector3.new(8, 1, 6), CFrame.new(0, 0.5, 44), purple, Enum.Material.Neon)
+	sign(lobby, "OfficeLiftSign", CFrame.new(0, 6, 42), "YOUR OFFICE\nUSE THE LIFT", gold)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Return to My Office"
+	prompt.MaxActivationDistance = 10
+	prompt.Parent = lift
+	prompt.Triggered:Connect(function(player)
+		if Access.near(player, { anchor = lift }) and Access.throttle(player, "travel", 2) then OfficeManager.teleport(player) end
+	end)
+	local function joined(player)
+		player.CharacterAdded:Connect(function(character)
+			task.spawn(function()
+				local root = character:WaitForChild("HumanoidRootPart", 15)
+				local deadline = os.clock() + 30
+				while player.Parent and not offices[player] and os.clock() < deadline do task.wait(0.2) end
+				if root and player.Character == character then OfficeManager.teleport(player) end
+			end)
+		end)
+	end
+	Players.PlayerAdded:Connect(joined)
+	for _, player in ipairs(Players:GetPlayers()) do joined(player) end
+	Players.PlayerRemoving:Connect(function(player)
+		local office = offices[player]
+		if office then
+			Environment.removeEmployees(office.model)
+			office.model:Destroy()
+			slots[office.slot] = nil
+			offices[player] = nil
+		end
+	end)
+end
+
+return OfficeManager
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX31">
 				<Properties>
 					<string name="Name">OperationManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -8158,7 +8532,7 @@ return OperationManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX30">
+			<Item class="ModuleScript" referent="RBX32">
 				<Properties>
 					<string name="Name">PlayerDataManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -8729,7 +9103,7 @@ return PlayerDataManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX31">
+			<Item class="ModuleScript" referent="RBX33">
 				<Properties>
 					<string name="Name">RandomEventManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -8811,7 +9185,7 @@ return RandomEventManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX32">
+			<Item class="ModuleScript" referent="RBX34">
 				<Properties>
 					<string name="Name">RewardManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -8937,7 +9311,93 @@ return RewardManager
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX33">
+			<Item class="ModuleScript" referent="RBX35">
+				<Properties>
+					<string name="Name">TerminalAccess</string>
+					<ProtectedString name="Source"><![CDATA[--!nonstrict
+-- Server-owned interaction sessions. ProximityPrompt events are untrusted too.
+local TerminalAccess = {}
+local sessions = {}
+local cooldowns = {}
+
+local permissions = {
+	workstation = { StartCall = true, ChooseOption = true, UseItem = true, SetDifficulty = true, setMethod = true },
+	hr = { hire = true, fire = true },
+	management = { PurchaseUpgrade = true, buyFacility = true, buyTradecraft = true },
+	security = { buySecurity = true, layLow = true, useItem = true },
+	premium = { PromptPurchase = true },
+}
+
+function TerminalAccess.near(player, terminal): boolean
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+	local anchor = terminal and terminal.anchor
+	if not root or not humanoid or humanoid.Health <= 0 or not anchor or not anchor:IsDescendantOf(workspace) then
+		return false
+	end
+	if terminal.owner and terminal.owner ~= player.UserId then return false end
+	if terminal.canUse and not terminal.canUse(player) then return false end
+	if (root.Position - anchor.Position).Magnitude > (terminal.distance or 10) then return false end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { character, terminal.model or anchor }
+	return workspace:Raycast(root.Position, anchor.Position - root.Position, params) == nil
+end
+
+function TerminalAccess.throttle(player, key, seconds): boolean
+	local bucket = cooldowns[player] or {}
+	cooldowns[player] = bucket
+	local now = os.clock()
+	if now < (bucket[key] or 0) then return false end
+	bucket[key] = now + seconds
+	return true
+end
+
+function TerminalAccess.open(player, terminal): boolean
+	if not permissions[terminal.kind] or not TerminalAccess.near(player, terminal) then return false end
+	sessions[player] = { terminal = terminal, character = player.Character, expires = os.clock() + 1800 }
+	return true
+end
+
+function TerminalAccess.valid(player): boolean
+	local session = sessions[player]
+	return session ~= nil and session.character == player.Character and session.expires > os.clock()
+		and TerminalAccess.near(player, session.terminal)
+end
+
+function TerminalAccess.authorize(player, action): boolean
+	if not TerminalAccess.valid(player) then return false end
+	local session = sessions[player]
+	if not permissions[session.terminal.kind][action] then return false end
+	if not TerminalAccess.throttle(player, "action", 0.2) then return false end
+	session.expires = os.clock() + 1800
+	return true
+end
+
+function TerminalAccess.current(player)
+	return sessions[player]
+end
+
+function TerminalAccess.close(player)
+	sessions[player] = nil
+end
+
+function TerminalAccess.remove(player)
+	sessions[player] = nil
+	cooldowns[player] = nil
+end
+
+function TerminalAccess.finiteInteger(value, minimum, maximum): boolean
+	return typeof(value) == "number" and value == value and value > -math.huge and value < math.huge
+		and value % 1 == 0 and value >= minimum and value <= maximum
+end
+
+return TerminalAccess
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX36">
 				<Properties>
 					<string name="Name">UpgradeManager</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -9015,15 +9475,15 @@ return UpgradeManager
 			</Item>
 		</Item>
 	</Item>
-	<Item class="StarterPlayer" referent="RBX34">
+	<Item class="StarterPlayer" referent="RBX37">
 		<Properties>
 			<string name="Name">StarterPlayer</string>
 		</Properties>
-		<Item class="StarterPlayerScripts" referent="RBX35">
+		<Item class="StarterPlayerScripts" referent="RBX38">
 			<Properties>
 				<string name="Name">StarterPlayerScripts</string>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX36">
+			<Item class="ModuleScript" referent="RBX39">
 				<Properties>
 					<string name="Name">Interface</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -9226,6 +9686,10 @@ function Interface.build(): any
 	operationButton.BackgroundColor3 = T.AccentDark
 	storeButton.BackgroundColor3 = T.Gold
 	storeButton.TextColor3 = Color3.fromRGB(32, 26, 10)
+	-- Actions live at computers. Only career/help remain on the permanent HUD.
+	operationButton.Visible = false
+	shopButton.Visible = false
+	storeButton.Visible = false
 
 	----------------------------------------------------------------------------
 	-- Home panel (difficulty + start call)
@@ -9233,8 +9697,9 @@ function Interface.build(): any
 	-- Bottom right, because the operation HUD owns the bottom left.
 	local home = UIKit.panel({
 		Name = "Home",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -16, 1, -24),
+		Visible = false,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
 		Size = UDim2.new(0, 720, 0, 210),
 		BackgroundTransparency = 0.05,
 		Parent = gui,
@@ -9404,6 +9869,23 @@ function Interface.build(): any
 		BackgroundColor3 = T.AccentDark,
 		Parent = ops,
 	})
+	layLowButton.Visible = false
+	opsOpenButton.Visible = false
+	ops.Size = UDim2.new(0, 300, 0, 154)
+
+	local terminalBar = UIKit.panel({
+		Name = "ComputerControls", Visible = false,
+		AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8),
+		Size = UDim2.new(0, 580, 0, 44), ZIndex = 30, Parent = gui,
+	})
+	local terminalTitle = UIKit.label({ Text = "COMPUTER", Size = UDim2.new(0, 200, 1, 0), TextSize = 15,
+		Position = UDim2.new(0, 12, 0, 0), TextColor3 = T.Accent, ZIndex = 31, Parent = terminalBar })
+	local terminalPrimary = UIKit.button({ Text = "Calls", Position = UDim2.new(0, 208, 0, 5),
+		Size = UDim2.new(0, 112, 0, 34), ZIndex = 31, Parent = terminalBar })
+	local terminalSecondary = UIKit.button({ Text = "Campaigns", Position = UDim2.new(0, 326, 0, 5),
+		Size = UDim2.new(0, 132, 0, 34), ZIndex = 31, Parent = terminalBar })
+	local terminalClose = UIKit.button({ Text = "Leave", Position = UDim2.new(1, -112, 0, 5),
+		Size = UDim2.new(0, 106, 0, 34), ZIndex = 31, Parent = terminalBar })
 
 	----------------------------------------------------------------------------
 	-- Call screen
@@ -9795,6 +10277,8 @@ function Interface.build(): any
 			"on real people. Do not try any of this outside the game.",
 			"",
 			"HOW A CALL WORKS",
+			"- Walk to CALLS + CAMPAIGNS and interact with its computer to begin.",
+			"- Stay at the workstation during calls. Walking away disconnects the line.",
 			"- Each call runs through 7 stages. Clear a stage by picking good lines.",
 			"- Trust goes up when your line suits that caller's personality.",
 			"- Suspicion goes up when it does not. At 100 suspicion they hang up.",
@@ -9808,6 +10292,9 @@ function Interface.build(): any
 			"- On Hard and above the meters are hidden, so judge them by what they say.",
 			"",
 			"PROGRESSION",
+			"- HR hires employees; Management expands the office and upgrades your desk.",
+			"- Security controls police risk and Lay Low; the Premium kiosk sells extras.",
+			"- Use the purple lift for global boards. Interact with a board for your rank.",
 			"- Successful calls pay Call Centre Credits. Spend them on desk upgrades.",
 			"- Lifetime earnings and successful calls raise your rank.",
 			"- Higher ranks unlock harder difficulties and extra dialogue options.",
@@ -9836,6 +10323,8 @@ function Interface.build(): any
 
 	return {
 		gui = gui,
+		terminal = { frame = terminalBar, title = terminalTitle, primary = terminalPrimary,
+			secondary = terminalSecondary, close = terminalClose },
 		topBar = {
 			frame = topBar,
 			credits = creditsLabel,
@@ -9917,7 +10406,7 @@ return Interface
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX37">
+			<Item class="ModuleScript" referent="RBX40">
 				<Properties>
 					<string name="Name">Juice</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -10258,7 +10747,7 @@ return Juice
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="LocalScript" referent="RBX38">
+			<Item class="LocalScript" referent="RBX41">
 				<Properties>
 					<string name="Name">MacrosoftClient</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict
@@ -10291,6 +10780,7 @@ local state = {
 	lastView = nil,
 	store = nil,
 	operation = nil,
+	terminal = nil,
 }
 
 --------------------------------------------------------------------------------
@@ -10560,6 +11050,8 @@ local function enterCall(view)
 	ui.home.frame.Visible = false
 	ui.call.frame.Visible = true
 	ui.result.frame.Visible = false
+	ui.operation.frame.Visible = false
+	ui.terminal.frame.Visible = false
 	renderCall(view, true)
 	renderItemRow()
 end
@@ -10567,7 +11059,8 @@ end
 local function exitCall()
 	state.inCall = false
 	ui.call.frame.Visible = false
-	ui.home.frame.Visible = true
+	ui.home.frame.Visible = state.terminal == "workstation"
+	ui.terminal.frame.Visible = state.terminal ~= nil
 end
 
 --------------------------------------------------------------------------------
@@ -11173,6 +11666,7 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	if state.terminal == "workstation" then
 	heading("Method", "How the operation makes its money. Every step up pays more and draws more attention.")
 	for _, method in ipairs(view.methods) do
 		local card = row({
@@ -11203,6 +11697,8 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
+	if state.terminal == "hr" then
 	heading("Staff", "Passive income, minus wages. The cheap ones draw more attention and are the first out of the window in a raid.")
 	for _, employee in ipairs(view.staff) do
 		local card = row({
@@ -11237,6 +11733,8 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
+	if state.terminal == "management" then
 	heading("Premises", "More desks, and a multiplier on everything the floor earns.")
 	for _, facility in ipairs(view.facilities) do
 		local card = row({
@@ -11265,6 +11763,12 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
+	if state.terminal == "security" then
+	heading("Police Response", "Pause the floor to cool suspicion before a raid.")
+	local riskCard = row({ title = "LAY LOW", blurb = "Halt income for three minutes and cool heat eight times faster." })
+	actionButton(riskCard, { text = "LAY LOW", enabled = view.layLowRemaining <= 0 and view.shutdownRemaining <= 0,
+		onClick = function() act("layLow") end })
 	heading("Security", "Slows heat, speeds cooling, and decides how a raid goes.")
 	for _, item in ipairs(view.security) do
 		local card = row({
@@ -11285,6 +11789,8 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
+	if state.terminal == "management" then
 	heading("Tradecraft", "Makes whatever you are already doing look less obviously dodgy.")
 	for _, item in ipairs(view.tradecraft) do
 		local card = row({
@@ -11305,6 +11811,7 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
 	local inventory = state.data and state.data.premium and state.data.premium.inventory or {}
 	local hasOperationItems = false
 	if state.store then
@@ -11314,7 +11821,7 @@ function renderOperation()
 			end
 		end
 	end
-	if hasOperationItems then
+	if hasOperationItems and state.terminal == "security" then
 		heading("In Your Drawer", "Bought items you can use on the operation right now.")
 		for _, product in ipairs(state.store.products) do
 			local held = inventory[product.id] or 0
@@ -11610,6 +12117,84 @@ function refreshStore()
 	return ok
 end
 
+local terminalRevision = 0
+local function hideTerminalPanels()
+	ui.home.frame.Visible = false
+	ui.operation.frame.Visible = false
+	ui.shop.frame.Visible = false
+	ui.store.frame.Visible = false
+end
+
+local function leaveTerminal()
+	terminalRevision += 1
+	state.terminal = nil
+	hideTerminalPanels()
+	ui.terminal.frame.Visible = false
+	Net.event("CloseTerminal"):FireServer()
+end
+
+local function showTerminalPage(secondary)
+	terminalRevision += 1
+	local revision = terminalRevision
+	local kind = state.terminal
+	if not kind or state.inCall then return end
+	hideTerminalPanels()
+	if kind == "workstation" and not secondary then
+		ui.home.frame.Visible = true
+		return
+	end
+	task.spawn(function()
+		if kind == "premium" then
+			refreshStore()
+			if revision ~= terminalRevision then return end
+			renderStore()
+			ui.store.frame.Visible = true
+		elseif kind == "management" and secondary then
+			refreshCatalog()
+			if revision ~= terminalRevision then return end
+			renderShop()
+			ui.shop.frame.Visible = true
+		else
+			refreshOperation()
+			if revision ~= terminalRevision then return end
+			renderOperation()
+			ui.operation.frame.Visible = true
+		end
+	end)
+end
+
+Net.event("TerminalOpened").OnClientEvent:Connect(function(payload)
+	terminalRevision += 1
+	state.terminal = payload.kind
+	ui.terminal.frame.Visible = true
+	ui.terminal.title.Text = string.upper(payload.kind) .. " COMPUTER"
+	ui.terminal.primary.Visible = payload.kind == "workstation" or payload.kind == "management"
+	ui.terminal.secondary.Visible = ui.terminal.primary.Visible
+	ui.terminal.primary.Text = payload.kind == "workstation" and "Calls" or "Premises"
+	ui.terminal.secondary.Text = payload.kind == "workstation" and "Campaigns" or "Desk Upgrades"
+	showTerminalPage(false)
+end)
+
+Net.event("TerminalClosed").OnClientEvent:Connect(function()
+	terminalRevision += 1
+	state.terminal = nil
+	hideTerminalPanels()
+	ui.terminal.frame.Visible = false
+end)
+
+Net.event("LeaderboardRank").OnClientEvent:Connect(function(payload)
+	local centre = workspace:FindFirstChild("CallCentre")
+	local boards = centre and centre:FindFirstChild("Leaderboards")
+	local board = boards and boards:FindFirstChild(payload.board)
+	local surface = board and board:FindFirstChild("Board")
+	local own = surface and surface:FindFirstChild("YourRank")
+	if own then own.Text = payload.text end -- local change: every visitor sees their own row
+end)
+
+ui.terminal.primary.Activated:Connect(function() showTerminalPage(false) end)
+ui.terminal.secondary.Activated:Connect(function() showTerminalPage(true) end)
+ui.terminal.close.Activated:Connect(leaveTerminal)
+
 --------------------------------------------------------------------------------
 -- Events
 --------------------------------------------------------------------------------
@@ -11621,7 +12206,7 @@ Net.event("OperationUpdated").OnClientEvent:Connect(function(view)
 	-- rather than a number quietly ticking up.
 	local previous = state.operation
 	if previous and view.summary.netIncome > 0 and (view.shutdownRemaining or 0) <= 0 and (view.layLowRemaining or 0) <= 0 then
-		local earned = math.floor(view.summary.netIncome * 5)
+		local earned = math.floor(math.max(0, (view.passiveEarned or 0) - (previous.passiveEarned or 0)))
 		if earned > 0 then
 			Juice.popup("+" .. Util.formatNumber(earned), T.Gold, ui.operation.hud.panel, {
 				offsetX = 40,
@@ -11707,13 +12292,6 @@ end)
 
 Net.event("Notify").OnClientEvent:Connect(function(payload)
 	toast(payload.title, payload.body, payload.kind)
-	if payload.openShop then
-		task.spawn(function()
-			refreshCatalog()
-			renderShop()
-			ui.shop.frame.Visible = true
-		end)
-	end
 end)
 
 Net.event("AchievementUnlocked").OnClientEvent:Connect(function(achievement)
@@ -11759,41 +12337,7 @@ for _, button in ipairs(ui.call.choiceButtons) do
 	end)
 end
 
-local function openOperation()
-	task.spawn(function()
-		refreshStore()
-		refreshOperation()
-		ui.operation.frame.Visible = true
-	end)
-end
-
-ui.operation.button.MouseButton1Click:Connect(openOperation)
-ui.operation.hud.open.MouseButton1Click:Connect(openOperation)
-ui.operation.close.MouseButton1Click:Connect(function()
-	ui.operation.frame.Visible = false
-end)
-ui.operation.hud.layLow.MouseButton1Click:Connect(function()
-	if not ui.operation.hud.layLow.Active then
-		return
-	end
-	Net.event("OperationAction"):FireServer("layLow")
-end)
-
-ui.topBar.storeButton.MouseButton1Click:Connect(function()
-	task.spawn(function()
-		refreshStore()
-		renderStore()
-		ui.store.frame.Visible = true
-	end)
-end)
-
-ui.topBar.shopButton.MouseButton1Click:Connect(function()
-	task.spawn(function()
-		refreshCatalog()
-		renderShop()
-		ui.shop.frame.Visible = true
-	end)
-end)
+ui.operation.close.Activated:Connect(leaveTerminal)
 
 ui.topBar.statsButton.MouseButton1Click:Connect(function()
 	task.spawn(function()
@@ -11807,12 +12351,8 @@ ui.topBar.helpButton.MouseButton1Click:Connect(function()
 	ui.help.frame.Visible = true
 end)
 
-ui.shop.close.MouseButton1Click:Connect(function()
-	ui.shop.frame.Visible = false
-end)
-ui.store.close.MouseButton1Click:Connect(function()
-	ui.store.frame.Visible = false
-end)
+ui.shop.close.Activated:Connect(leaveTerminal)
+ui.store.close.Activated:Connect(leaveTerminal)
 ui.career.close.MouseButton1Click:Connect(function()
 	ui.career.frame.Visible = false
 end)
@@ -11889,12 +12429,12 @@ task.spawn(function()
 	refreshStore()
 	refreshOperation()
 	Net.event("RequestData"):FireServer()
-	toast("Welcome to Macrosoft", "Everything here is fictional satire. Press How To Play for the rules.", "info")
+	toast("Welcome to Your Office", "Use the cyan computer for calls, HR to hire, and the purple lift for leaderboards. Everything here is fictional satire.", "info")
 end)
 ]]></ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="ModuleScript" referent="RBX39">
+			<Item class="ModuleScript" referent="RBX42">
 				<Properties>
 					<string name="Name">UIKit</string>
 					<ProtectedString name="Source"><![CDATA[--!nonstrict

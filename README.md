@@ -49,6 +49,41 @@ and used on a real person. Do not do any of this to anybody.
 No parts, GUIs or RemoteEvents have to be created by hand. The world and the
 interface are both generated at runtime.
 
+## Physical office update (1.4.0)
+
+Continues `claude/roblox-scam-call-centre-yx6beg` at `bbdb628`; the existing
+managers, dialogue, economy, save keys and Rojo layout remain in place.
+
+Players spawn in their own saved office. Interact with **Calls + Campaigns**
+to choose a difficulty, make calls or select a fictional operation method.
+**HR** hires/fires staff; **Office Management** expands premises, buys desk
+upgrades and trains tradecraft; **Security** installs protection, monitors heat,
+uses the lawyer and activates Lay Low; the **Premium Kiosk** opens the Robux
+catalogue. Career/help and read-only income/heat remain on the HUD. Walking
+away or dying closes the computer and disconnects an active call.
+
+The purple lift visits the original shared lobby and eight physical global
+boards. Each board keeps its Top 10 and has a personalised row: interact with
+the board to load your exact competition rank, including outside the Top 10.
+Ties share a rank; zero scores are unranked. Results cache for 90 seconds.
+Unavailable DataStores show an explicit unavailable state, never a made-up rank.
+
+All seven premises grow the physical floor and its desk capacity, from three
+desks to ninety. Hired employees occupy those desks with tier-coloured outfits;
+firing and raids update the visible roster. Neon trim, warm lights, skyline
+windows, upgrade/heat boards, plants and progressively improved surfaces make
+the operation's growth visible. The original lobby is retained as a showroom.
+
+`TerminalAccess` validates physical sessions on the server, including ownership,
+distance, line of sight, a living character, terminal-specific permissions and
+rate limits. `OfficeManager` presents saved operation state using the existing
+`EnvironmentBuilder` primitives; it never pays income. `LeaderboardRank`
+implements paginated global ranks without a Top-100 cutoff.
+
+Windows validation: `./tests/run.ps1` (Luau, Python and Rojo on PATH, or pass
+`-Luau`, `-Compiler`, `-Python`, `-Rojo`). See `docs/TESTING.md` for the physical
+terminal and multiplayer Studio checklist and the limits of the headless tests.
+
 ## Testing it right now
 
 Fastest: paste **`tools/StudioLoader.lua`** into the Roblox Studio command bar.

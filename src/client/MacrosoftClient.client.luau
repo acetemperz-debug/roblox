@@ -28,6 +28,7 @@ local state = {
 	lastView = nil,
 	store = nil,
 	operation = nil,
+	terminal = nil,
 }
 
 --------------------------------------------------------------------------------
@@ -297,6 +298,8 @@ local function enterCall(view)
 	ui.home.frame.Visible = false
 	ui.call.frame.Visible = true
 	ui.result.frame.Visible = false
+	ui.operation.frame.Visible = false
+	ui.terminal.frame.Visible = false
 	renderCall(view, true)
 	renderItemRow()
 end
@@ -304,7 +307,8 @@ end
 local function exitCall()
 	state.inCall = false
 	ui.call.frame.Visible = false
-	ui.home.frame.Visible = true
+	ui.home.frame.Visible = state.terminal == "workstation"
+	ui.terminal.frame.Visible = state.terminal ~= nil
 end
 
 --------------------------------------------------------------------------------
@@ -910,6 +914,7 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	if state.terminal == "workstation" then
 	heading("Method", "How the operation makes its money. Every step up pays more and draws more attention.")
 	for _, method in ipairs(view.methods) do
 		local card = row({
@@ -940,6 +945,8 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
+	if state.terminal == "hr" then
 	heading("Staff", "Passive income, minus wages. The cheap ones draw more attention and are the first out of the window in a raid.")
 	for _, employee in ipairs(view.staff) do
 		local card = row({
@@ -974,6 +981,8 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
+	if state.terminal == "management" then
 	heading("Premises", "More desks, and a multiplier on everything the floor earns.")
 	for _, facility in ipairs(view.facilities) do
 		local card = row({
@@ -1002,6 +1011,12 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
+	if state.terminal == "security" then
+	heading("Police Response", "Pause the floor to cool suspicion before a raid.")
+	local riskCard = row({ title = "LAY LOW", blurb = "Halt income for three minutes and cool heat eight times faster." })
+	actionButton(riskCard, { text = "LAY LOW", enabled = view.layLowRemaining <= 0 and view.shutdownRemaining <= 0,
+		onClick = function() act("layLow") end })
 	heading("Security", "Slows heat, speeds cooling, and decides how a raid goes.")
 	for _, item in ipairs(view.security) do
 		local card = row({
@@ -1022,6 +1037,8 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
+	if state.terminal == "management" then
 	heading("Tradecraft", "Makes whatever you are already doing look less obviously dodgy.")
 	for _, item in ipairs(view.tradecraft) do
 		local card = row({
@@ -1042,6 +1059,7 @@ function renderOperation()
 	end
 
 	----------------------------------------------------------------------------
+	end
 	local inventory = state.data and state.data.premium and state.data.premium.inventory or {}
 	local hasOperationItems = false
 	if state.store then
@@ -1051,7 +1069,7 @@ function renderOperation()
 			end
 		end
 	end
-	if hasOperationItems then
+	if hasOperationItems and state.terminal == "security" then
 		heading("In Your Drawer", "Bought items you can use on the operation right now.")
 		for _, product in ipairs(state.store.products) do
 			local held = inventory[product.id] or 0
@@ -1347,6 +1365,84 @@ function refreshStore()
 	return ok
 end
 
+local terminalRevision = 0
+local function hideTerminalPanels()
+	ui.home.frame.Visible = false
+	ui.operation.frame.Visible = false
+	ui.shop.frame.Visible = false
+	ui.store.frame.Visible = false
+end
+
+local function leaveTerminal()
+	terminalRevision += 1
+	state.terminal = nil
+	hideTerminalPanels()
+	ui.terminal.frame.Visible = false
+	Net.event("CloseTerminal"):FireServer()
+end
+
+local function showTerminalPage(secondary)
+	terminalRevision += 1
+	local revision = terminalRevision
+	local kind = state.terminal
+	if not kind or state.inCall then return end
+	hideTerminalPanels()
+	if kind == "workstation" and not secondary then
+		ui.home.frame.Visible = true
+		return
+	end
+	task.spawn(function()
+		if kind == "premium" then
+			refreshStore()
+			if revision ~= terminalRevision then return end
+			renderStore()
+			ui.store.frame.Visible = true
+		elseif kind == "management" and secondary then
+			refreshCatalog()
+			if revision ~= terminalRevision then return end
+			renderShop()
+			ui.shop.frame.Visible = true
+		else
+			refreshOperation()
+			if revision ~= terminalRevision then return end
+			renderOperation()
+			ui.operation.frame.Visible = true
+		end
+	end)
+end
+
+Net.event("TerminalOpened").OnClientEvent:Connect(function(payload)
+	terminalRevision += 1
+	state.terminal = payload.kind
+	ui.terminal.frame.Visible = true
+	ui.terminal.title.Text = string.upper(payload.kind) .. " COMPUTER"
+	ui.terminal.primary.Visible = payload.kind == "workstation" or payload.kind == "management"
+	ui.terminal.secondary.Visible = ui.terminal.primary.Visible
+	ui.terminal.primary.Text = payload.kind == "workstation" and "Calls" or "Premises"
+	ui.terminal.secondary.Text = payload.kind == "workstation" and "Campaigns" or "Desk Upgrades"
+	showTerminalPage(false)
+end)
+
+Net.event("TerminalClosed").OnClientEvent:Connect(function()
+	terminalRevision += 1
+	state.terminal = nil
+	hideTerminalPanels()
+	ui.terminal.frame.Visible = false
+end)
+
+Net.event("LeaderboardRank").OnClientEvent:Connect(function(payload)
+	local centre = workspace:FindFirstChild("CallCentre")
+	local boards = centre and centre:FindFirstChild("Leaderboards")
+	local board = boards and boards:FindFirstChild(payload.board)
+	local surface = board and board:FindFirstChild("Board")
+	local own = surface and surface:FindFirstChild("YourRank")
+	if own then own.Text = payload.text end -- local change: every visitor sees their own row
+end)
+
+ui.terminal.primary.Activated:Connect(function() showTerminalPage(false) end)
+ui.terminal.secondary.Activated:Connect(function() showTerminalPage(true) end)
+ui.terminal.close.Activated:Connect(leaveTerminal)
+
 --------------------------------------------------------------------------------
 -- Events
 --------------------------------------------------------------------------------
@@ -1358,7 +1454,7 @@ Net.event("OperationUpdated").OnClientEvent:Connect(function(view)
 	-- rather than a number quietly ticking up.
 	local previous = state.operation
 	if previous and view.summary.netIncome > 0 and (view.shutdownRemaining or 0) <= 0 and (view.layLowRemaining or 0) <= 0 then
-		local earned = math.floor(view.summary.netIncome * 5)
+		local earned = math.floor(math.max(0, (view.passiveEarned or 0) - (previous.passiveEarned or 0)))
 		if earned > 0 then
 			Juice.popup("+" .. Util.formatNumber(earned), T.Gold, ui.operation.hud.panel, {
 				offsetX = 40,
@@ -1444,13 +1540,6 @@ end)
 
 Net.event("Notify").OnClientEvent:Connect(function(payload)
 	toast(payload.title, payload.body, payload.kind)
-	if payload.openShop then
-		task.spawn(function()
-			refreshCatalog()
-			renderShop()
-			ui.shop.frame.Visible = true
-		end)
-	end
 end)
 
 Net.event("AchievementUnlocked").OnClientEvent:Connect(function(achievement)
@@ -1496,41 +1585,7 @@ for _, button in ipairs(ui.call.choiceButtons) do
 	end)
 end
 
-local function openOperation()
-	task.spawn(function()
-		refreshStore()
-		refreshOperation()
-		ui.operation.frame.Visible = true
-	end)
-end
-
-ui.operation.button.MouseButton1Click:Connect(openOperation)
-ui.operation.hud.open.MouseButton1Click:Connect(openOperation)
-ui.operation.close.MouseButton1Click:Connect(function()
-	ui.operation.frame.Visible = false
-end)
-ui.operation.hud.layLow.MouseButton1Click:Connect(function()
-	if not ui.operation.hud.layLow.Active then
-		return
-	end
-	Net.event("OperationAction"):FireServer("layLow")
-end)
-
-ui.topBar.storeButton.MouseButton1Click:Connect(function()
-	task.spawn(function()
-		refreshStore()
-		renderStore()
-		ui.store.frame.Visible = true
-	end)
-end)
-
-ui.topBar.shopButton.MouseButton1Click:Connect(function()
-	task.spawn(function()
-		refreshCatalog()
-		renderShop()
-		ui.shop.frame.Visible = true
-	end)
-end)
+ui.operation.close.Activated:Connect(leaveTerminal)
 
 ui.topBar.statsButton.MouseButton1Click:Connect(function()
 	task.spawn(function()
@@ -1544,12 +1599,8 @@ ui.topBar.helpButton.MouseButton1Click:Connect(function()
 	ui.help.frame.Visible = true
 end)
 
-ui.shop.close.MouseButton1Click:Connect(function()
-	ui.shop.frame.Visible = false
-end)
-ui.store.close.MouseButton1Click:Connect(function()
-	ui.store.frame.Visible = false
-end)
+ui.shop.close.Activated:Connect(leaveTerminal)
+ui.store.close.Activated:Connect(leaveTerminal)
 ui.career.close.MouseButton1Click:Connect(function()
 	ui.career.frame.Visible = false
 end)
@@ -1626,5 +1677,5 @@ task.spawn(function()
 	refreshStore()
 	refreshOperation()
 	Net.event("RequestData"):FireServer()
-	toast("Welcome to Macrosoft", "Everything here is fictional satire. Press How To Play for the rules.", "info")
+	toast("Welcome to Your Office", "Use the cyan computer for calls, HR to hire, and the purple lift for leaderboards. Everything here is fictional satire.", "info")
 end)

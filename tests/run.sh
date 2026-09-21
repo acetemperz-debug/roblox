@@ -12,7 +12,7 @@ echo "all files compile"
 
 echo
 echo "== lint =="
-luau-analyze --solver=old $(find src -name '*.luau') 2>&1 \
+luau-analyze $(find src -name '*.luau') 2>&1 \
 	| grep -viE "unknown global|unknown require|unknown type|cannot be resolved|TypeError: Type" \
 	|| true
 

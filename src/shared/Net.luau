@@ -21,6 +21,7 @@ local EVENTS = {
 	"UseItem", -- (productId: string)
 	"SetAlias", -- (alias: string)
 	"OperationAction", -- (action: string, a: any?, b: any?)
+	"CloseTerminal",
 
 	-- Server -> Client
 	"CallStarted", -- (callView)
@@ -35,6 +36,9 @@ local EVENTS = {
 	"RaidAlert", -- (outcome)
 	"OfflineEarnings", -- ({amount, seconds, capped})
 	"Broadcast", -- ({text, kind}) to everyone, for the live ticker
+	"TerminalOpened", -- server-authorised physical terminal session
+	"TerminalClosed",
+	"LeaderboardRank", -- personal row on the physical board
 }
 
 local FUNCTIONS = {
