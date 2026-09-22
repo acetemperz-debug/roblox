@@ -5059,40 +5059,125 @@ end
 
 local function applyHeadset(character: Model)
 	local head = character:FindFirstChild("Head")
-	if not head or not head:IsA("BasePart") then
+	local humanoid = character:FindFirstChildWhichIsA("Humanoid")
+	if not head or not head:IsA("BasePart") or not humanoid then
+		return
+	end
+	local headHatAttachment = head:FindFirstChild("HatAttachment")
+	if not headHatAttachment or not headHatAttachment:IsA("Attachment") then
 		return
 	end
 
-	local band = Instance.new("Part")
-	band.Name = HEADSET_NAME
-	band.Size = Vector3.new(1.5, 0.22, 1.5)
-	band.Color = Color3.fromRGB(226, 229, 238)
-	band.Material = Enum.Material.Metal
-	band.CanCollide = false
-	band.Massless = true
-	band.Anchored = false
-	band.CFrame = head.CFrame * CFrame.new(0, 0.62, 0)
-	band.Parent = character
+	local accessory = Instance.new("Accessory")
+	accessory.Name = HEADSET_NAME
+	accessory.AccessoryType = Enum.AccessoryType.Hat
 
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = band
-	weld.Part1 = head
-	weld.Parent = band
+	-- HatAttachment exists on standard R6 and R15 heads. Matching it from the
+	-- Handle lets Humanoid:AddAccessory create the normal AccessoryWeld instead
+	-- of pinning loose geometry directly to the character's head.
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.2, 0.2, 0.2)
+	handle.Transparency = 1
+	handle.CanCollide = false
+	handle.CanTouch = false
+	handle.CanQuery = false
+	handle.Massless = true
+	handle.Anchored = false
+	handle.CFrame = CFrame.new()
+	handle.Parent = accessory
 
-	local cup = Instance.new("Part")
-	cup.Name = HEADSET_NAME .. "Cup"
-	cup.Size = Vector3.new(0.25, 0.5, 0.5)
-	cup.Color = Color3.fromRGB(200, 204, 214)
-	cup.Material = Enum.Material.Metal
-	cup.CanCollide = false
-	cup.Massless = true
-	cup.CFrame = head.CFrame * CFrame.new(-0.72, 0.1, 0)
-	cup.Parent = band
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "HatAttachment"
+	-- Copy the avatar's exact attachment transform. That puts the invisible
+	-- Handle at the head centre without assuming one fixed hat offset.
+	attachment.CFrame = headHatAttachment.CFrame
+	attachment.Parent = handle
 
-	local cupWeld = Instance.new("WeldConstraint")
-	cupWeld.Part0 = cup
-	cupWeld.Part1 = head
-	cupWeld.Parent = cup
+	local platinum = Color3.fromRGB(219, 225, 235)
+	local platinumDark = Color3.fromRGB(142, 151, 166)
+	local cushion = Color3.fromRGB(20, 23, 30)
+	local cushionEdge = Color3.fromRGB(43, 48, 59)
+
+	local function detail(className: string, name: string, size: Vector3, colour: Color3, material, offset: CFrame, shape)
+		local part = Instance.new(className)
+		part.Name = name
+		part.Size = size
+		part.Color = colour
+		part.Material = material
+		if shape then
+			part.Shape = shape
+		end
+		part.CanCollide = false
+		part.CanTouch = false
+		part.CanQuery = false
+		part.Massless = true
+		part.Anchored = false
+		part.CFrame = handle.CFrame * offset
+		part.Parent = accessory
+
+		local weld = Instance.new("WeldConstraint")
+		weld.Name = "HeadsetWeld"
+		weld.Part0 = handle
+		weld.Part1 = part
+		weld.Parent = part
+		return part
+	end
+
+	-- A padded seven-piece arc follows the top of a standard avatar head.
+	-- Overlapping cylinders read as one smooth band rather than a square halo.
+	local bandSegments = {
+		{ -1.02, 0.05, 72, 0.40 },
+		{ -0.86, 0.34, 50, 0.44 },
+		{ -0.52, 0.58, 24, 0.48 },
+		{ 0, 0.67, 0, 0.60 },
+		{ 0.52, 0.58, -24, 0.48 },
+		{ 0.86, 0.34, -50, 0.44 },
+		{ 1.02, 0.05, -72, 0.40 },
+	}
+	for index, segment in ipairs(bandSegments) do
+		local offset = CFrame.new(segment[1], segment[2], 0.05) * CFrame.Angles(0, 0, math.rad(segment[3]))
+		detail("Part", "PaddedBand" .. index, Vector3.new(segment[4], 0.24, 0.24), cushion, Enum.Material.SmoothPlastic, offset, Enum.PartType.Cylinder)
+		local railOffset = CFrame.new(segment[1], segment[2] + 0.13, 0.05) * CFrame.Angles(0, 0, math.rad(segment[3]))
+		detail("Part", "PlatinumRail" .. index, Vector3.new(segment[4], 0.065, 0.065), platinum, Enum.Material.Metal, railOffset, Enum.PartType.Cylinder)
+	end
+
+	-- Metal yokes bridge the band and the earcups without covering the padding.
+	for _, side in ipairs({ -1, 1 }) do
+		detail(
+			"Part",
+			side < 0 and "LeftYoke" or "RightYoke",
+			Vector3.new(0.42, 0.09, 0.09),
+			platinum,
+			Enum.Material.Metal,
+			CFrame.new(side * 1.08, 0.08, 0.05) * CFrame.Angles(0, 0, math.rad(90)),
+			Enum.PartType.Cylinder
+		)
+	end
+
+	local function earcup(side: number, label: string)
+		-- Circular outer shells, inset trim and thick inward-facing cushions make
+		-- the silhouette unmistakably over-ear from the front and side.
+		detail("Part", label .. "Earcup", Vector3.new(0.30, 0.82, 0.82), platinum, Enum.Material.Metal, CFrame.new(side * 1.12, -0.16, 0.05), Enum.PartType.Cylinder)
+		detail("Part", label .. "Trim", Vector3.new(0.06, 0.68, 0.68), platinumDark, Enum.Material.Metal, CFrame.new(side * 1.29, -0.16, 0.05), Enum.PartType.Cylinder)
+		detail("Part", label .. "Cushion", Vector3.new(0.20, 0.72, 0.72), cushion, Enum.Material.SmoothPlastic, CFrame.new(side * 0.94, -0.16, 0.05), Enum.PartType.Cylinder)
+		detail("Part", label .. "CushionInset", Vector3.new(0.025, 0.48, 0.48), cushionEdge, Enum.Material.SmoothPlastic, CFrame.new(side * 0.825, -0.16, 0.05), Enum.PartType.Cylinder)
+	end
+	earcup(-1, "Left")
+	earcup(1, "Right")
+
+	-- A restrained diamond mark on the outside cup gives the pass a recognisable
+	-- premium detail without turning the headset into a glowing costume prop.
+	detail("Part", "PlatinumMark", Vector3.new(0.035, 0.18, 0.18), Color3.fromRGB(242, 246, 255), Enum.Material.Metal, CFrame.new(-1.335, -0.16, 0.05) * CFrame.Angles(math.rad(45), 0, 0), Enum.PartType.Block)
+
+	-- The boom stays entirely on the left side, then turns inward near its tip;
+	-- it finishes forward of the cheek rather than clipping through the face.
+	detail("Part", "MicrophoneJoint", Vector3.new(0.18, 0.18, 0.18), platinumDark, Enum.Material.Metal, CFrame.new(-1.30, -0.28, -0.16), Enum.PartType.Ball)
+	detail("Part", "MicrophoneBoom", Vector3.new(0.82, 0.07, 0.07), platinumDark, Enum.Material.Metal, CFrame.new(-1.25, -0.36, -0.55) * CFrame.Angles(0, math.rad(90), math.rad(-8)), Enum.PartType.Cylinder)
+	detail("Part", "MicrophoneStem", Vector3.new(0.34, 0.065, 0.065), platinumDark, Enum.Material.Metal, CFrame.new(-1.03, -0.45, -0.91), Enum.PartType.Cylinder)
+	detail("Part", "MicrophoneCapsule", Vector3.new(0.20, 0.13, 0.13), cushion, Enum.Material.SmoothPlastic, CFrame.new(-0.79, -0.45, -0.91), Enum.PartType.Ball)
+
+	humanoid:AddAccessory(accessory)
 end
 
 local Ranks = require(Shared.Ranks)
@@ -7444,7 +7529,7 @@ function MonetisationManager.catalog(player: Player)
 	local passes = {}
 	for _, pass in ipairs(Products.GamePasses) do
 		local robux, priceIsLive = currentPrice(pass, Enum.InfoType.GamePass)
-			table.insert(passes, {
+		table.insert(passes, {
 			id = pass.id,
 			assetId = pass.assetId,
 			name = pass.name,

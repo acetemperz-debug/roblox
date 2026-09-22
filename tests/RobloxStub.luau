@@ -118,6 +118,24 @@ function methods:GetAttribute(key)
 	return rawget(self, "_attributes")[key]
 end
 
+function methods:AddAccessory(accessory)
+	assert(self.ClassName == "Humanoid", "simulator: AddAccessory requires a Humanoid")
+	local character = self.Parent
+	local handle = accessory:FindFirstChild("Handle")
+	assert(character and handle, "simulator: accessory requires a character and Handle")
+	local handleAttachment = handle:FindFirstChildWhichIsA("Attachment")
+	local head = character:FindFirstChild("Head")
+	local headAttachment = head and handleAttachment and head:FindFirstChild(handleAttachment.Name)
+	assert(headAttachment, "simulator: no matching character attachment")
+
+	accessory.Parent = character
+	local weld = Instance.new("Weld")
+	weld.Name = "AccessoryWeld"
+	weld.Part0 = head
+	weld.Part1 = handle
+	weld.Parent = handle
+end
+
 local instanceMeta = {
 	__index = function(self, key)
 		if key == "Position" and rawget(self, "CFrame") then return rawget(self, "CFrame").Position end

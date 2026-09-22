@@ -29,7 +29,7 @@ local SERVER = {
 	"RandomEventManager", "RewardManager", "UpgradeManager", "AchievementManager",
 	"CallManager", "LeaderboardManager", "EnvironmentBuilder", "OperationManager",
 	"HeatManager", "TerminalAccess", "LeaderboardRank", "OfficeSessions", "OfficeManager",
-	"MonetisationManager",
+	"MonetisationManager", "CosmeticsManager",
 }
 
 local sharedFolder = Stub.newInstance("Folder")
@@ -95,6 +95,7 @@ local LeaderboardManager = require(serverFolder.LeaderboardManager)
 local OperationManager = require(serverFolder.OperationManager)
 local RewardManager = require(serverFolder.RewardManager)
 local HeatManager = require(serverFolder.HeatManager)
+local CosmeticsManager = require(serverFolder.CosmeticsManager)
 
 --------------------------------------------------------------------------------
 -- Assertions on content volume (the design brief's minimums).
@@ -814,6 +815,61 @@ local expiredBoost = Products.applyBonuses(Upgrades.aggregate({}), {
 	boostMultiplier = 1,
 })
 check("an expired boost does nothing", expiredBoost.rewardMul == 1, "x" .. tostring(expiredBoost.rewardMul))
+
+-- The paid headset must be a normal attached Accessory, not loose blocks welded
+-- straight to the avatar's head.
+local cosmeticPlayer = Stub.newPlayer(7007, "HeadsetTest")
+PlayerDataManager.load(cosmeticPlayer)
+PlayerDataManager.setPassOwned(cosmeticPlayer, "platinum_headset", true)
+local cosmeticCharacter = Stub.newInstance("Model")
+cosmeticCharacter.Name = "HeadsetTest"
+local cosmeticHead = Stub.newInstance("Part")
+cosmeticHead.Name = "Head"
+cosmeticHead.CFrame = CFrame.new(0, 5, 0)
+cosmeticHead.Parent = cosmeticCharacter
+local headAttachment = Stub.newInstance("Attachment")
+headAttachment.Name = "HatAttachment"
+headAttachment.CFrame = CFrame.new(0, 0.6, 0)
+headAttachment.Parent = cosmeticHead
+local cosmeticHumanoid = Stub.newInstance("Humanoid")
+cosmeticHumanoid.Parent = cosmeticCharacter
+cosmeticPlayer.Character = cosmeticCharacter
+CosmeticsManager.apply(cosmeticPlayer, true)
+
+local headset = cosmeticCharacter:FindFirstChild("MacrosoftPlatinumHeadset")
+local headsetHandle = headset and headset:FindFirstChild("Handle")
+check("Platinum Headset is a Roblox Accessory", headset ~= nil and headset:IsA("Accessory"))
+check(
+	"headset uses a Handle and matching HatAttachment",
+	headsetHandle ~= nil
+		and headsetHandle:FindFirstChild("HatAttachment") ~= nil
+		and headsetHandle.HatAttachment.CFrame == headAttachment.CFrame
+		and headsetHandle:FindFirstChild("AccessoryWeld") ~= nil
+)
+local detailParts = 0
+local allDetailsWelded = true
+for _, child in ipairs(headset and headset:GetChildren() or {}) do
+	if child:IsA("BasePart") and child ~= headsetHandle then
+		detailParts += 1
+		if not child:FindFirstChild("HeadsetWeld") then
+			allDetailsWelded = false
+		end
+	end
+end
+check("premium headset geometry is welded into one accessory", detailParts >= 25 and allDetailsWelded, detailParts .. " visible parts")
+check(
+	"headset has paired padded over-ear cups",
+	headset ~= nil
+		and headset:FindFirstChild("LeftEarcup") ~= nil
+		and headset:FindFirstChild("RightEarcup") ~= nil
+		and headset:FindFirstChild("LeftCushion") ~= nil
+		and headset:FindFirstChild("RightCushion") ~= nil
+)
+local microphone = headset and headset:FindFirstChild("MicrophoneCapsule")
+check(
+	"boom microphone finishes beside and forward of the mouth",
+	microphone ~= nil and microphone.Position.X < -0.5 and microphone.Position.Z < -0.7
+)
 
 -- Warm Lead must actually soften the roll.
 local hardTiers, warmTiers = {}, {}
